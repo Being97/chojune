@@ -4,9 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase";
-import Link from "next/link";
 
-// 리뷰 데이터의 타입을 정의합니다.
 interface Review {
   id: number;
   created_at: string;
@@ -25,7 +23,6 @@ export default function HomePage() {
     async function fetchPageData() {
       const projectName = "별을 기억한다는 것은";
 
-      // 1. 전체 평점 및 리뷰 수 가져오기
       const { data: allData } = await supabase
         .from("reviews")
         .select("rating")
@@ -39,7 +36,6 @@ export default function HomePage() {
         setStats({ avg, count: allData.length });
       }
 
-      // 2. 가장 최근의 별점 5점 리뷰 1개 가져오기
       const { data: topReview } = await supabase
         .from("reviews")
         .select("*")
@@ -54,7 +50,6 @@ export default function HomePage() {
     fetchPageData();
   }, []);
 
-  // 이름 마스킹 함수
   const maskName = (name: string) => {
     if (!name) return "";
     if (name.length <= 1) return name;
@@ -63,133 +58,151 @@ export default function HomePage() {
   };
 
   return (
-    <main className="max-w-5xl mx-auto p-8 py-20 min-h-screen">
-      {/* 회사 및 브랜드 소개 섹션 */}
-      <section className="mb-24">
-        <h2 className="text-5xl font-black mb-6 leading-tight tracking-tighter">
-          경험을 넘어선 몰입,
-          <br />
-          우리는 <span className="text-red-600">조준</span>합니다.
-        </h2>
-        <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed font-medium">
-          '조준(CHOJUNE)'은 단순한 게임을 넘어, 참여자가 이야기의 주인공이 되는
-          몰입형 공간 콘텐츠를 만듭니다. 현실과 가상의 경계를 허무는 우리만의
-          세계관 속에서 잊지 못할 순간을 경험하세요.
-        </p>
-      </section>
-
-      {/* 현재 진행 중인 프로젝트 카드 */}
-      <section className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 md:p-14 relative overflow-hidden shadow-2xl">
-        {/* 상태 태그 */}
-        <div className="absolute top-0 right-0 p-8">
-          <span className="bg-red-600 text-[10px] font-black px-4 py-1.5 rounded-full animate-pulse tracking-widest">
-            NOW OPEN
-          </span>
-        </div>
-
-        <div className="max-w-full relative z-10">
-          <h3 className="text-zinc-500 font-bold mb-3 uppercase tracking-[0.2em] text-xs">
-            Ongoing Project
-          </h3>
-          <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight text-white">
-            별을 기억한다는 것은
-          </h2>
-
-          <div className="flex flex-wrap gap-3 mb-10 text-sm">
-            <div className="bg-zinc-800/50 border border-zinc-700/50 px-5 py-2.5 rounded-2xl text-zinc-300 font-medium">
-              📅 2026.05.09 — 06.06
-            </div>
-            <div className="bg-zinc-800/50 border border-zinc-700/50 px-5 py-2.5 rounded-2xl text-zinc-300 font-medium">
-              📍 몰입형 방탈출
-            </div>
+    <main className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
+      <div className="max-w-5xl mx-auto p-8 py-20">
+        {/* 상단 브랜드 섹션 */}
+        <section className="mb-20">
+          <div className="inline-block bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-xs font-bold tracking-widest mb-6">
+            IMMERSIVE EXPERIENCE STUDIO
           </div>
-
-          <p className="text-zinc-400 mb-12 text-lg leading-relaxed italic border-l-2 border-red-600 pl-6">
-            "기억은 사라져도 빛은 남는다."
+          <h2 className="text-4xl md:text-4xl font-black mb-8 leading-[1.1] tracking-tight">
+            경험을 넘어선 몰입,
             <br />
-            <span className="not-italic text-base inline-block mt-2">
-              밤하늘의 별들이 하나둘 사라지기 시작한 도시. 당신은 마지막 별의
-              기억을 찾아 떠나는 여정에 초대되었습니다. 60분간 펼쳐지는 감성
-              미스터리 스릴러.
+            우리는{" "}
+            <span className="text-blue-600 underline decoration-blue-200 underline-offset-8">
+              조준
             </span>
+            합니다.
+          </h2>
+          <p className="text-slate-500 text-lg md:text-xl max-w-2xl leading-relaxed font-medium">
+            '조준(CHOJUNE)'은 당신이 이야기의 주인공이 되는 몰입형 공간 콘텐츠를
+            설계합니다. 현실보다 더 리얼한 세계관 속에서 특별한 순간을
+            소유하세요.
           </p>
+        </section>
 
-          {/* 평점 및 리뷰 가로 나란히 배치 섹션 */}
-          <div className="flex flex-col md:flex-row items-stretch gap-6 mt-12 w-full">
-            {/* 좌측: 평균 별점 카드 */}
-            <div className="bg-black/40 border border-zinc-800 p-8 rounded-[2rem] flex flex-col items-center justify-center min-w-[240px] md:w-1/3 shadow-inner">
-              <span className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">
-                Average Rating
-              </span>
-              <div className="text-6xl font-black text-white mb-2 tracking-tighter">
-                {stats.avg}
-              </div>
-              <div className="flex gap-1 mb-4 text-red-600 text-xl">
-                {[...Array(5)].map((_, i) => (
-                  <span
-                    key={i}
-                    className={
-                      i < Math.floor(Number(stats.avg))
-                        ? "text-red-600"
-                        : "text-zinc-800"
-                    }
-                  >
-                    ★
-                  </span>
-                ))}
-              </div>
-              <span className="text-zinc-500 text-xs font-bold uppercase tracking-tighter">
-                {stats.count.toLocaleString()} Players
-              </span>
-            </div>
-
-            {/* 우측: 최신 베스트 후기 박스 */}
-            {bestReview ? (
-              <div className="flex-1 bg-red-600/5 border border-red-600/10 p-8 md:p-10 rounded-[2rem] flex flex-col justify-center relative overflow-hidden group">
-                {/* 배경 장식용 따옴표 아이콘 */}
-                <div className="absolute top-6 right-8 opacity-10 text-red-600 transition-transform group-hover:scale-110 duration-500">
-                  <svg
-                    width="60"
-                    height="60"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 7.55228 14.017 7V5C14.017 4.44772 14.4647 4 15.017 4H19.017C20.6739 4 22.017 5.34315 22.017 7V15C22.017 18.3137 19.3307 21 16.017 21H14.017ZM2.01695 21L2.01695 18C2.01695 16.8954 2.91238 16 4.01695 16H7.01695C7.56923 16 8.01695 15.5523 8.01695 15V9C8.01695 8.44772 7.56923 8 7.01695 8H3.01695C2.46467 8 2.01695 7.55228 2.01695 7V5C2.01695 4.44772 2.46467 4 3.01695 4H7.01695C8.6738 4 10.017 5.34315 10.017 7V15C10.017 18.3137 7.33025 21 4.01695 21H2.01695Z" />
-                  </svg>
-                </div>
-
-                <span className="text-red-500 text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-                  Latest Field Report
-                </span>
-
-                <p className="text-zinc-200 text-lg md:text-2xl font-bold leading-relaxed italic mb-6 relative z-10">
-                  "{bestReview.review}"
-                </p>
-
-                <div className="flex items-center gap-2 relative z-10">
-                  <div className="w-1 h-4 bg-red-600"></div>
-                  <span className="text-zinc-500 text-sm font-bold uppercase tracking-widest">
-                    Explorer {maskName(bestReview.name)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 bg-zinc-800/20 border border-zinc-800/50 p-8 rounded-[2rem] flex items-center justify-center text-zinc-600 italic">
-                데이터를 불러오고 있거나, 첫 번째 탐험가의 기록을 기다리고
-                있습니다.
-              </div>
-            )}
+        {/* 메인 프로젝트 카드 */}
+        <section className="bg-white border border-slate-100 rounded-[3rem] p-8 md:p-14 relative overflow-hidden shadow-xl shadow-blue-900/5">
+          {/* 상태 태그 */}
+          <div className="absolute top-10 right-10">
+            <span className="bg-blue-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full tracking-widest">
+              LIVE PROJECT
+            </span>
           </div>
 
-          <p className="mt-8 text-zinc-600 text-[10px] font-medium tracking-tight">
-            * 실제 플레이를 완료한 탐험가들의 실시간 피드백 데이터입니다.
-          </p>
-        </div>
+          <div className="relative z-10">
+            <h3 className="text-blue-400 font-bold mb-4 uppercase tracking-[0.25em] text-xs">
+              Ongoing Project
+            </h3>
+            <h2 className="text-4xl md:text-4xl font-black mb-8 tracking-tight text-slate-900">
+              별을 기억한다는 것은
+            </h2>
 
-        {/* 배경 장식 요소 */}
-        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-red-600/5 blur-[100px] rounded-full"></div>
-      </section>
+            <div className="flex flex-wrap gap-3 mb-12">
+              <div className="bg-slate-50 border border-slate-100 px-5 py-2.5 rounded-2xl text-slate-600 font-bold text-sm shadow-sm">
+                📅 2026.05.09 — 05.31
+              </div>
+              <div className="bg-slate-50 border border-slate-100 px-5 py-2.5 rounded-2xl text-slate-600 font-bold text-sm shadow-sm">
+                📍 Campus D 서울 , 서울시 영등포구 양평로 21길 20 (07207)
+              </div>
+            </div>
+
+            <div className="mb-12">
+              <p className="text-slate-500 text-lg leading-relaxed font-medium pl-6 border-l-4 border-blue-100 italic">
+                "ep1(오픈형). 우주비행사 선발 시험"
+                <br />
+                "ep2(몰입형). 시간을 초월한 항해"
+                <br />
+                <span className="not-italic text-base text-slate-400 block mt-3">
+                  우주비행사가 되는 여정, 그리고 시간을 초월한 항해.
+                </span>
+              </p>
+            </div>
+
+            {/* 통계 및 리뷰 섹션 */}
+            <div className="flex flex-col lg:flex-row items-stretch gap-6 w-full">
+              {/* 좌측: 평균 별점 */}
+              <div className="bg-blue-600 p-10 rounded-[2.5rem] flex flex-col items-center justify-center min-w-[260px] text-white shadow-lg shadow-blue-600/20">
+                <span className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+                  Average Rating
+                </span>
+                <div className="text-5xl font-black mb-2 tracking-tighter">
+                  {stats.avg}
+                </div>
+                <div className="flex gap-1 mb-4 text-blue-200 text-xl">
+                  {[...Array(5)].map((_, i) => (
+                    <span
+                      key={i}
+                      className={
+                        i < Math.floor(Number(stats.avg))
+                          ? "text-white"
+                          : "text-blue-400/50"
+                      }
+                    >
+                      ★
+                    </span>
+                  ))}
+                </div>
+                <span className="bg-white/10 px-4 py-1 rounded-full text-blue-50 text-[11px] font-bold">
+                  {stats.count.toLocaleString()} EXPLORERS
+                </span>
+              </div>
+
+              {/* 우측: 베스트 후기 */}
+              {bestReview ? (
+                <div className="flex-1 bg-slate-50 border border-slate-100 p-8 md:p-12 rounded-[2.5rem] flex flex-col justify-center relative group hover:bg-white hover:shadow-md transition-all duration-500">
+                  <div className="text-blue-600/10 absolute -top-2 -left-2 rotate-12">
+                    <svg
+                      width="120"
+                      height="120"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 7.55228 14.017 7V5C14.017 4.44772 14.4647 4 15.017 4H19.017C20.6739 4 22.017 5.34315 22.017 7V15C22.017 18.3137 19.3307 21 16.017 21H14.017ZM2.01695 21L2.01695 18C2.01695 16.8954 2.91238 16 4.01695 16H7.01695C7.56923 16 8.01695 15.5523 8.01695 15V9C8.01695 8.44772 7.56923 8 7.01695 8H3.01695C2.46467 8 2.01695 7.55228 2.01695 7V5C2.01695 4.44772 2.46467 4 3.01695 4H7.01695C8.6738 4 10.017 5.34315 10.017 7V15C10.017 18.3137 7.33025 21 4.01695 21H2.01695Z" />
+                    </svg>
+                  </div>
+
+                  <span className="text-blue-500 text-[10px] font-black uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                    Best Review
+                  </span>
+
+                  <p className="text-slate-700 text-xl md:text-2xl font-bold leading-relaxed mb-8 relative z-10 break-keep">
+                    "{bestReview.review}"
+                  </p>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-[2px] bg-blue-600"></div>
+                    <span className="text-slate-400 text-sm font-bold tracking-widest">
+                      탐험가 {maskName(bestReview.name)}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 bg-slate-50 border border-slate-100 border-dashed p-8 rounded-[2.5rem] flex items-center justify-center text-slate-400 font-medium italic">
+                  새로운 탐험 기록을 기다리고 있습니다.
+                </div>
+              )}
+            </div>
+
+            <p className="mt-10 text-slate-400 text-[10px] font-bold text-center lg:text-left">
+              * 조준은 실제 플레이어의 소중한 의견을 실시간으로 반영합니다.
+            </p>
+          </div>
+
+          {/* 배경 데코 아이콘 */}
+          <div className="absolute -bottom-10 -right-10 text-blue-50/50 scale-150 rotate-12 select-none pointer-events-none">
+            <svg
+              width="200"
+              height="200"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
