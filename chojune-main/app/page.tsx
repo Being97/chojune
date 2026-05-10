@@ -42,7 +42,7 @@ export default function HomePage() {
       // 2. 가장 최근의 별점 5점 리뷰 1개 가져오기
       const { data: topReview } = await supabase
         .from("reviews")
-        .select("name, review")
+        .select("*")
         .eq("project", projectName)
         .eq("rating", 5)
         .order("created_at", { ascending: false })
