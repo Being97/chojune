@@ -1,5 +1,4 @@
 // app/page.tsx
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -17,12 +16,13 @@ interface Review {
 
 export default function HomePage() {
   const [stats, setStats] = useState({ avg: "0.0", count: 0 });
-  const [bestReview, setBestReview] = useState<Review | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
 
   useEffect(() => {
     async function fetchPageData() {
       const projectName = "별을 기억한다는 것은";
 
+      // 1. 전체 별점 및 통계 가져오기
       const { data: allData } = await supabase
         .from("reviews")
         .select("rating")
@@ -36,16 +36,14 @@ export default function HomePage() {
         setStats({ avg, count: allData.length });
       }
 
-      const { data: topReview } = await supabase
+      // 2. 해당 프로젝트의 전체 리뷰 가져오기 (최신순)
+      const { data: reviewList } = await supabase
         .from("reviews")
         .select("*")
         .eq("project", projectName)
-        .eq("rating", 5)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+        .order("created_at", { ascending: false });
 
-      if (topReview) setBestReview(topReview);
+      if (reviewList) setReviews(reviewList);
     }
     fetchPageData();
   }, []);
@@ -55,6 +53,16 @@ export default function HomePage() {
     if (name.length <= 1) return name;
     if (name.length === 2) return name[0] + "*";
     return name[0] + "*".repeat(name.length - 2) + name[name.length - 1];
+  };
+
+  // 🔒 스포일러 단어 마스킹 필터 함수
+  const filterSpoiler = (text: string) => {
+    if (!text) return "";
+    const spoilerWords = ["사진", "편지", "이미지", "미래", "모습", "노후", "노인"];
+    
+    // 정규식을 활용해 배열 내의 단어들을 한 번에 감지하여 ■■ 로 치환합니다.
+    const regex = new RegExp(spoilerWords.join("|"), "g");
+    return text.replace(regex, "■■");
   };
 
   return (
@@ -71,7 +79,7 @@ export default function HomePage() {
             우리는{" "}
             <span className="text-blue-600 underline decoration-blue-200 underline-offset-8">
               조준
-            </span>
+            </span>{" "}
             합니다.
           </h2>
           <p className="text-slate-500 text-lg md:text-xl max-w-2xl leading-relaxed font-medium">
@@ -82,7 +90,7 @@ export default function HomePage() {
         </section>
 
         {/* 메인 프로젝트 카드 */}
-        <section className="bg-white border border-slate-100 rounded-[3rem] p-8 md:p-14 relative overflow-hidden shadow-xl shadow-blue-900/5">
+        <section className="bg-white border border-slate-100 rounded-[3rem] p-8 md:p-14 relative overflow-hidden shadow-xl shadow-blue-900/5 mb-12">
           {/* 상태 태그 */}
           <div className="absolute top-10 right-10">
             <span className="bg-blue-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full tracking-widest">
@@ -94,9 +102,13 @@ export default function HomePage() {
             <h3 className="text-blue-400 font-bold mb-4 uppercase tracking-[0.25em] text-xs">
               Ongoing Project
             </h3>
-            <h2 className="text-4xl md:text-4xl font-black mb-8 tracking-tight text-slate-900">
-              별을 기억한다는 것은
-            </h2>
+            
+            {/* 프로젝트 제목만 깔끔하게 노출 */}
+            <div className="mb-8">
+              <h2 className="text-4xl font-black tracking-tight text-slate-900">
+                별을 기억한다는 것은
+              </h2>
+            </div>
 
             <div className="flex flex-wrap gap-3 mb-12">
               <div className="bg-slate-50 border border-slate-100 px-5 py-2.5 rounded-2xl text-slate-600 font-bold text-sm shadow-sm">
@@ -119,10 +131,11 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* 통계 및 리뷰 섹션 */}
-            <div className="flex flex-col lg:flex-row items-stretch gap-6 w-full">
-              {/* 좌측: 평균 별점 */}
-              <div className="bg-blue-600 p-10 rounded-[2.5rem] flex flex-col items-center justify-center min-w-[260px] text-white shadow-lg shadow-blue-600/20">
+            {/* 대시보드 구조: 좌측 평점 / 우측 리뷰 리스트 피드 */}
+            <div id="reviews-section" className="flex flex-col lg:flex-row items-stretch gap-6 w-full pt-4">
+              
+              {/* 좌측: 평균 별점 고정 대시보드 */}
+              <div className="bg-blue-600 p-10 rounded-[2.5rem] flex flex-col items-center justify-center min-w-[260px] lg:max-h-[320px] text-white shadow-lg shadow-blue-600/20 lg:sticky lg:top-8">
                 <span className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em] mb-4">
                   Average Rating
                 </span>
@@ -148,45 +161,41 @@ export default function HomePage() {
                 </span>
               </div>
 
-              {/* 우측: 베스트 후기 */}
-              {bestReview ? (
-                <div className="flex-1 bg-slate-50 border border-slate-100 p-8 md:p-12 rounded-[2.5rem] flex flex-col justify-center relative group hover:bg-white hover:shadow-md transition-all duration-500">
-                  <div className="text-blue-600/10 absolute -top-2 -left-2 rotate-12">
-                    <svg
-                      width="120"
-                      height="120"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
+              {/* 우측: 스크롤 가능한 탐험가 리뷰 피드 */}
+              <div className="flex-1 flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {reviews.length > 0 ? (
+                  reviews.map((item) => (
+                    <div 
+                      key={item.id} 
+                      className="bg-slate-50 border border-slate-100 p-6 md:p-8 rounded-[2rem] flex flex-col justify-center relative hover:bg-white hover:shadow-md transition-all duration-300"
                     >
-                      <path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 7.55228 14.017 7V5C14.017 4.44772 14.4647 4 15.017 4H19.017C20.6739 4 22.017 5.34315 22.017 7V15C22.017 18.3137 19.3307 21 16.017 21H14.017ZM2.01695 21L2.01695 18C2.01695 16.8954 2.91238 16 4.01695 16H7.01695C7.56923 16 8.01695 15.5523 8.01695 15V9C8.01695 8.44772 7.56923 8 7.01695 8H3.01695C2.46467 8 2.01695 7.55228 2.01695 7V5C2.01695 4.44772 2.46467 4 3.01695 4H7.01695C8.6738 4 10.017 5.34315 10.017 7V15C10.017 18.3137 7.33025 21 4.01695 21H2.01695Z" />
-                    </svg>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex gap-0.5 text-amber-400 text-sm">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i}>{i < item.rating ? "★" : "☆"}</span>
+                          ))}
+                        </div>
+                        <span className="text-xs font-bold text-slate-400 tracking-wider">
+                          {maskName(item.name)} 탐험가
+                        </span>
+                      </div>
+                      {/* 🔒 filterSpoiler 함수로 감싸 후기 원문 마스킹 */}
+                      <p className="text-slate-700 text-base md:text-lg font-bold leading-relaxed break-keep">
+                        "{filterSpoiler(item.review)}"
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="h-full bg-slate-50 border border-slate-100 border-dashed p-8 rounded-[2.5rem] flex items-center justify-center text-slate-400 font-medium italic">
+                    새로운 탐험 기록을 기다리고 있습니다.
                   </div>
+                )}
+              </div>
 
-                  <span className="text-blue-500 text-[10px] font-black uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                    Best Review
-                  </span>
-
-                  <p className="text-slate-700 text-xl md:text-2xl font-bold leading-relaxed mb-8 relative z-10 break-keep">
-                    "{bestReview.review}"
-                  </p>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-[2px] bg-blue-600"></div>
-                    <span className="text-slate-400 text-sm font-bold tracking-widest">
-                      탐험가 {maskName(bestReview.name)}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 bg-slate-50 border border-slate-100 border-dashed p-8 rounded-[2.5rem] flex items-center justify-center text-slate-400 font-medium italic">
-                  새로운 탐험 기록을 기다리고 있습니다.
-                </div>
-              )}
             </div>
 
             <p className="mt-10 text-slate-400 text-[10px] font-bold text-center lg:text-left">
-              * 조준은 실제 플레이어의 소중한 의견을 실시간으로 반영합니다.
+              * 조준은 실제 플레이어의 소중한 의견을 실시간으로 반영하며, 스포일러 방지를 위해 일부 단어가 블라인드 처리될 수 있습니다.
             </p>
           </div>
 
