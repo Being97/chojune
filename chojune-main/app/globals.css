@@ -1,15 +1,24 @@
+/* app/globals.css */
+
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
+/* 💡 Tailwind v4용 새로운 브랜드 테마 지정 방식 */
+@theme {
+  --color-primary-light: #F0F7FF;   /* bg-primary-light */
+  --color-primary-point: #E0EFFF;   /* text-primary-point */
+  --color-primary: #007BFF;         /* 🌟 text-primary, bg-primary */
+  --color-primary-dark: #0056B3;    /* hover:bg-primary-dark */
+  
+  /* 기존 기본 테마 시스템 유지 */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
 }
 
 @media (prefers-color-scheme: dark) {
