@@ -17,10 +17,13 @@ export default function AboutPage() {
       // title: "대형 성과 및 독자 에피소드 확장",
       desc: (
         <ul className="list-disc pl-4 space-y-1 text-slate-500 text-sm font-medium">
-          <li>(주)디알비 인터네셔널 협업 진행</li>
+          <li>(주)디알비 인터네셔널 MOU 체결</li>
+          <li>대전 원도심 창업 해커톤 1위</li>
+          <li>소상공인시장진흥공단 로컬 장인학교 수료 및 우수팀 선정</li>
           <li>대덕특구 과학기술 성과 특별전시 운영 / 대전과학산업진흥원</li>
           <li>과학 방탈출 [헌터학교 입학시험], [SSS급 비밀동아리] 운영 / 대한민국 과학축제</li>
           <li>주니어 과학 방탈출 [별을 기억한다는 것은] 운영 / 캠퍼스디 서울</li>
+          <li>지역업체 협업 방탈출 [큐리오 상점] 운영 / 대전 과학카페 쿠아</li>
         </ul>
       )
     },
@@ -29,12 +32,19 @@ export default function AboutPage() {
       // title: "정부 지원 사업 선정 및 스튜디오 출범",
       desc: (
         <ul className="list-disc pl-4 space-y-1 text-slate-500 text-sm font-medium">
-          <li>민간 과학문화 활동 지원사업 선정 / 대전관광공사</li>
+          <li>대전관광공사 민간과학문화 진흥사업 선정 및 운영</li>
           <li>과학 방탈출 [닥터 카카오의 실험실] 운영</li>
+          <li>영등포 미래인재 과학축제 방탈출 부스 운영</li>
           <li>프로젝트조준(CHOJUNE) 설립</li>
         </ul>
       )
     },
+  ];
+
+  const metrics = [
+    { label: "운영 수", value: "5", unit: "건" },
+    { label: "방탈출 제작", value: "9", unit: "건" },
+    { label: "누적 방문자 수", value: "1,963", unit: "명" }
   ];
 
   // 대표
@@ -107,8 +117,7 @@ export default function AboutPage() {
       {/* 3. 연혁 (Timeline) 섹션 */}
       <section className="max-w-3xl mx-auto py-24 px-6 border-b border-slate-100">
         <div className="mb-16 text-center">
-          <span className="text-primary font-bold uppercase tracking-wider text-xs block mb-2">History</span>
-          <h3 className="text-2xl md:text-3xl font-black text-slate-900">우리가 걸어온 발자취</h3>
+          <h3 className="text-primary font-bold uppercase tracking-wider block mb-2">History</h3>
         </div>
 
         <div className="relative border-l-2 border-slate-100 pl-6 ml-4 space-y-12">
@@ -122,6 +131,35 @@ export default function AboutPage() {
                   {typeof h.desc === "string" ? <p>{h.desc}</p> : h.desc}
                 </div>
               </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 📊 3. 비즈니스 성과 (Key Metrics) 섹션 추가 */}
+      <section className="max-w-5xl mx-auto py-24 px-6 text-center">
+        <div className="mb-16">
+          <span className="text-primary font-bold uppercase tracking-wider text-xs block mb-2">Business Impact</span>
+          <h3 className="text-2xl md:text-3xl font-black text-slate-900">숫자로 증명하는 과학 콘텐츠의 힘</h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          {metrics.map((m, idx) => (
+            <div 
+              key={idx} 
+              className="bg-slate-50 border border-slate-100/80 p-8 md:p-10 rounded-[2.5rem] group hover:bg-white hover:border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
+            >
+              <p className="text-sm font-bold text-slate-400 mb-4 tracking-tight group-hover:text-slate-500 transition-colors">
+                {m.label}
+              </p>
+              <p className="text-4xl md:text-5xl font-black tracking-tight text-slate-900">
+                <span className="text-primary group-hover:scale-110 inline-block transition-transform duration-300">
+                  {m.value}
+                </span>
+                <span className="text-xl md:text-2xl font-black text-slate-800 ml-1">
+                  {m.unit}
+                </span>
+              </p>
             </div>
           ))}
         </div>
