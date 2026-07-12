@@ -1,3 +1,5 @@
+// app/page.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -51,7 +53,7 @@ export default function HomePage() {
         <div className="inline-block bg-primary-light text-primary px-4 py-1.5 rounded-full text-xs font-bold tracking-widest mb-6">
           WHERE SCIENCE MEETS STORY
         </div>
-        <h1 className="text-4xl md:text-6xl font-black mb-8 leading-[1.15] tracking-tight text-slate-900">
+        <h1 className="text-3xl md:text-6xl font-black mb-8 leading-[1.15] tracking-tight text-slate-900">
           과학문화를 정조준!
           <br />
           우리는 <span className="text-primary">프로젝트조준</span>입니다.
