@@ -1,136 +1,268 @@
-// app/portfolio/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import Image from "next/image";
 
-interface Review {
-  id: number;
-  created_at: string;
+interface PortfolioItem {
+  id: string;
   project: string;
-  name: string;
-  phone_number: string;
-  review: string;
+  active: string;
+  date: string;
+  location: string;
+  organizer: string;
+  participants: number;
   rating: number;
+  mainImage: string;
+  activityImages: string[];
 }
 
 export default function PortfolioPage() {
-  const [stats, setStats] = useState({ avg: "0.0", count: 0 });
-  const [reviews, setReviews] = useState<Review[]>([]);
+  const [items, setItems] = useState<PortfolioItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
 
   useEffect(() => {
-    async function fetchPageData() {
-      const projectName = "별을 기억한다는 것은";
-
-      const { data: allData } = await supabase
-        .from("reviews")
-        .select("rating")
-        .eq("project", projectName);
-
-      if (allData && allData.length > 0) {
-        const avg = (
-          allData.reduce((acc, curr) => acc + (curr.rating || 0), 0) /
-          allData.length
-        ).toFixed(1);
-        setStats({ avg, count: allData.length });
+    async function fetchNotionPortfolio() {
+      try {
+        const res = await fetch("/api/notion/portfolio", { cache: "no-store" });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setItems(data);
+        }
+      } catch (err) {
+        console.error("포트폴리오 로딩 실패:", err);
+      } finally {
+        setLoading(false);
       }
-
-      const { data: reviewList } = await supabase
-        .from("reviews")
-        .select("*")
-        .eq("project", projectName)
-        .order("created_at", { ascending: false });
-
-      if (reviewList) setReviews(reviewList);
     }
-    fetchPageData();
+    fetchNotionPortfolio();
   }, []);
 
-  const maskName = (name: string) => {
-    if (!name) return "";
-    if (name.length <= 1) return name;
-    if (name.length === 2) return name[0] + "*";
-    return name[0] + "*".repeat(name.length - 2) + name[name.length - 1];
-  };
-
-  const filterSpoiler = (text: string) => {
-    if (!text) return "";
-    const spoilerWords = ["사진", "편지", "이미지", "미래", "모습", "노후", "노인"];
-    const regex = new RegExp(spoilerWords.join("|"), "g");
-    return text.replace(regex, "■■");
+  // ⭐ 시각적 별점 컴포넌트 렌더러 (소수점 채우기 지원)
+  const renderStars = (rating: number) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      const fillPercentage = Math.min(Math.max(rating - (i - 1), 0), 1) * 100;
+      
+      stars.push(
+        <div key={i} className="relative text-slate-200 text-lg sm:text-base selection:bg-transparent select-none">
+          <span>★</span>
+          <div 
+            className="absolute top-0 left-0 text-amber-500 overflow-hidden whitespace-nowrap"
+            style={{ width: `${fillPercentage}%` }}
+          >
+            ★
+          </div>
+        </div>
+      );
+    }
+    return <div className="flex items-center gap-0.5">{stars}</div>;
   };
 
   return (
     <div className="bg-slate-50 min-h-screen py-16 md:py-24 px-6">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         
-        {/* 상단 타이틀 안내 */}
+        {/* 헤더 */}
         <div className="text-center md:text-left mb-16">
-          <span className="text-primary font-bold uppercase tracking-wider text-xs block mb-2">Portfolio & Records</span>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-950 mb-4">제작 프로젝트 및 탐험 기록</h2>
-          <p className="text-slate-500 font-medium text-base break-keep">
-            공간이 전하는 서사 위에 남겨진 탐험가들의 생생한 발자국입니다. 실제 피드백을 실시간으로 투명하게 반영합니다.
-          </p>
+          <span className="text-primary font-bold uppercase tracking-wider text-xs block mb-2">Project Archive</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-950 mb-4">프로젝트 아카이브</h2>
         </div>
 
-        {/* 메인 프로젝트 요약 및 후기 대시보드 */}
-        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-6 md:p-12 shadow-sm mb-8">
-          <div className="flex items-center justify-between mb-8 pb-6 border-b border-slate-100">
-            <div>
-              <span className="text-primary text-xs font-black uppercase tracking-widest block mb-1">Epic 01. Live</span>
-              <h3 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">별을 기억한다는 것은</h3>
-            </div>
-            <span className="bg-blue-50 text-primary text-xs font-bold px-4 py-2 rounded-xl">진행중</span>
+        {/* 로딩 스켈레톤 */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="h-80 bg-slate-200 animate-pulse rounded-[2.5rem]" />
+            ))}
           </div>
+        ) : items.length > 0 ? (
+          /* 카드 그리드 */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {items.map((item) => {
+              const hasMainImage = item.mainImage && item.mainImage.startsWith("http");
+              const isActive = item.active === "진행 중" || item.active === "진행중";
 
-          {/* 대시보드 정렬: 좌 통계 / 우 스크롤 피드 */}
-          <div className="flex flex-col lg:flex-row gap-8 items-stretch">
-            {/* 좌측 박스 */}
-            <div className="bg-slate-950 text-white p-8 rounded-3xl flex flex-col items-center justify-center min-w-[260px] text-center lg:sticky lg:top-24 h-fit">
-              <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">Average Score</span>
-              <div className="text-5xl font-black mb-1 text-white">{stats.avg}</div>
-              <div className="flex gap-0.5 mb-4 text-amber-400 text-lg">
-                {[...Array(5)].map((_, i) => (
-                  <span key={i} className={i < Math.floor(Number(stats.avg)) ? "text-amber-400" : "text-slate-800"}>★</span>
-                ))}
-              </div>
-              <span className="bg-white/10 text-slate-300 text-xs font-bold px-4 py-1 rounded-full">
-                {stats.count.toLocaleString()} 명의 기록 보관됨
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setSelectedItem(item)}
+                  className="group bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 cursor-pointer flex flex-col"
+                >
+                  {/* 메인사진 커버 */}
+                  {/* 💡 축소된contain 이미지가 돋보이도록 배경색을 부여하고 여백(p-4)을 적용했습니다. */}
+                  <div className="relative aspect-[4/3] w-full bg-slate-900 overflow-hidden flex items-center justify-center shrink-0 p-4">
+                    {hasMainImage ? (
+                      <Image
+                        src={item.mainImage}
+                        alt={item.project || "Project Image"}
+                        fill
+                        sizes="(max-w-768px) 100vw, 33vw"
+                        priority={true} // 💡 LCP 성능 경고 해결을 위한 사전 로딩 추가
+                        className="object-contain p-4 group-hover:scale-105 transition-transform duration-500" // 💡 object-contain으로 이미지 잘림 방지
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950 flex flex-col items-center justify-center text-slate-500 gap-1.5 p-4 text-center">
+                        <span className="text-2xl">🖼️</span>
+                        <span className="text-xs font-black tracking-wider text-slate-400">HERO*LAB ARCHIVE</span>
+                      </div>
+                    )}
+                    
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                  </div>
+
+                  {/* 카드 텍스트 메타 정보 */}
+                  <div className="p-6 md:p-8 flex-1 flex flex-col justify-between">
+                    <div>
+                      {/* 상단 정렬 영역 */}
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`text-xs font-black tracking-tight ${
+                            isActive ? "text-blue-600" : "text-slate-400"
+                          }`}>
+                            {isActive ? "진행 중" : "완료"}
+                          </span>
+                          <span className="text-xs font-bold text-slate-400">
+                            {item.date || "기록 대기"}
+                          </span>
+                        </div>
+                        
+                        {/* 별점 이미지 + 숫자 표기 형태 유지 */}
+                        {item.rating > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            {renderStars(item.rating)}
+                            <span className="text-xs font-black text-slate-700 mt-0.5">{item.rating.toFixed(1)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <h3 className="text-xl font-black text-slate-900 leading-snug group-hover:text-primary transition-colors line-clamp-2 break-keep">
+                        {item.project}
+                      </h3>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between text-xs font-bold text-slate-400">
+                      <span>📍 {item.location || "공간 한정"}</span>
+                      <span className="text-right max-w-[50%] truncate">{item.organizer || "자체 기획"}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-24 text-slate-400 font-semibold">
+            등록된 포트폴리오가 없습니다.
+          </div>
+        )}
+
+      </div>
+
+      {/* 🔍 상세 보기 모달 (Modal) */}
+      {selectedItem && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 md:p-6"
+          onClick={() => setSelectedItem(null)}
+        >
+          <div 
+            className="bg-white rounded-[2.5rem] max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-10 shadow-2xl relative custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setSelectedItem(null)}
+              className="absolute top-6 right-6 w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center font-bold text-slate-600 transition-colors"
+            >
+              ✕
+            </button>
+
+            {/* 모달 상단 */}
+            <div className="flex items-center gap-2.5 mb-3">
+              <span className={`text-xs font-black ${
+                selectedItem.active === "진행 중" || selectedItem.active === "진행중" ? "text-blue-600" : "text-slate-400"
+              }`}>
+                {selectedItem.active || "완료"}
+              </span>
+              <span className="text-xs font-bold text-slate-400">
+                {selectedItem.date || "진행중"}
               </span>
             </div>
+            
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-6 break-keep">
+              {selectedItem.project}
+            </h2>
 
-            {/* 우측 피드 */}
-            <div className="flex-1 flex flex-col gap-4 max-h-[550px] overflow-y-auto pr-2 custom-scrollbar">
-              {reviews.length > 0 ? (
-                reviews.map((item) => (
-                  <div key={item.id} className="bg-slate-50/60 border border-slate-100 p-6 rounded-2xl hover:border-blue-100 hover:bg-slate-50/30 transition-all">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex gap-0.5 text-amber-400 text-xs">
-                        {[...Array(5)].map((_, i) => (
-                          <span key={i}>{i < item.rating ? "★" : "☆"}</span>
-                        ))}
-                      </div>
-                      <span className="text-xs font-semibold text-slate-400">{maskName(item.name)} 탐험가</span>
-                    </div>
-                    <p className="text-slate-800 text-sm md:text-base font-bold leading-relaxed break-keep">
-                      {filterSpoiler(item.review)}
-                    </p>
-                  </div>
-                ))
+            {/* 주요 정보 메타 태그 */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-5 rounded-2xl mb-8 text-xs font-medium">
+              <div>
+                <span className="block text-slate-400 mb-1">📍 장소</span>
+                <span className="font-bold text-slate-800">{selectedItem.location || "-"}</span>
+              </div>
+              <div>
+                <span className="block text-slate-400 mb-1">🏛️ 주관기관</span>
+                <span className="font-bold text-slate-800">{selectedItem.organizer || "자체 기획"}</span>
+              </div>
+              <div>
+                <span className="block text-slate-400 mb-1">👥 참여인원</span>
+                <span className="font-bold text-slate-800">{selectedItem.participants ? `${selectedItem.participants.toLocaleString()}명` : "0명"}</span>
+              </div>
+              <div>
+                <span className="block text-slate-400 mb-1">⭐ 만족도</span>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  {renderStars(selectedItem.rating)}
+                  <span className="font-black text-slate-800 text-[11px]">{selectedItem.rating.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 대표 메인사진 */}
+            <div className="relative aspect-video w-full rounded-2xl overflow-hidden mb-8 bg-slate-950 flex items-center justify-center">
+              {selectedItem.mainImage && selectedItem.mainImage.startsWith("http") ? (
+                <Image
+                  src={selectedItem.mainImage}
+                  alt={selectedItem.project || "Project Image"}
+                  fill
+                  sizes="(max-w-768px) 100vw, 33vw"
+                  priority={true} // 💡 LCP 성능 경고 해결을 위한 사전 로딩 추가
+                  className="object-contain p-4 group-hover:scale-105 transition-transform duration-500" // 💡 object-contain으로 이미지 잘림 방지
+                />
               ) : (
-                <div className="h-48 border border-slate-200 border-dashed rounded-2xl flex items-center justify-center text-slate-400 font-medium italic">
-                  새로운 탐험 기록을 기다리고 있습니다.
+                <div className="text-slate-500 flex flex-col items-center gap-2">
+                  <span className="text-3xl">🖼️</span>
+                  <span className="text-sm font-semibold text-slate-400">등록된 메인 이미지가 없습니다.</span>
                 </div>
               )}
             </div>
-          </div>
-          
-          <p className="mt-8 text-slate-400 text-[10px] font-medium text-center md:text-left">
-            * 스포일러 방지 필터가 작동 중입니다. 공간 내 주요 오브젝트나 반전 요소 관련 단어는 안전하게 블라이드 처리(■■)됩니다.
-          </p>
-        </div>
 
-      </div>
+            {/* 활동사진 갤러리 */}
+            {selectedItem.activityImages && selectedItem.activityImages.length > 0 && (
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
+                  📸 활동 기록 갤러리
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {selectedItem.activityImages.map((img, idx) => {
+                    const isUrlValid = img && img.startsWith("http");
+                    if (!isUrlValid) return null;
+
+                    return (
+                      <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200/50">
+                        <Image
+                          src={img}
+                          alt={`${selectedItem.project} 활동사진 ${idx + 1}`}
+                          fill
+                          // 💡 활동사진 레이아웃 구조에 맞는 최적화된 sizes 명시 (경고 방지)
+                          sizes="(max-w-768px) 50vw, 384px"
+                          className="object-cover hover:scale-105 transition-transform duration-300"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

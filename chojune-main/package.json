@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@notionhq/client": "^5.23.0",
     "@supabase/supabase-js": "^2.105.4",
     "next": "16.2.6",
     "pnpm": "^10.34.3",
