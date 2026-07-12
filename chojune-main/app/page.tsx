@@ -110,7 +110,7 @@ export default function HomePage() {
                   href="/portfolio" 
                   className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-6 py-3.5 rounded-xl text-sm transition-all shadow-sm"
                 >
-                  탐험가 후기 및 자세히 보기 →
+                  자세히 보기 →
                 </Link>
                 <Link 
                   href="/reservation" 

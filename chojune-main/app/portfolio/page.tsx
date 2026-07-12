@@ -238,7 +238,7 @@ export default function PortfolioPage() {
             {selectedItem.activityImages && selectedItem.activityImages.length > 0 && (
               <div>
                 <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
-                  📸 활동 기록 갤러리 <span className="text-xs font-medium text-slate-400 lowercase italic ml-1">(클릭하면 크게 봅니다)</span>
+                  📸 활동 기록 갤러리
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   {selectedItem.activityImages.map((img, idx) => {

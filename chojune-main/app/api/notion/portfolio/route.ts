@@ -32,8 +32,8 @@ export async function GET() {
         parsedDate = getText(dateProp) || "날짜 미정";
       }
 
-      // 진행여부 체크박스 안전하게 파싱하기
-      const activeProp = props["진행여부"];
+      // Ongoing 체크박스 안전하게 파싱하기
+      const activeProp = props["Ongoing"];
       let currentStatus = "완료"; // 기본값 (체크가 안 되어 있으면 완료)
 
       if (activeProp && activeProp.type === "checkbox") {
