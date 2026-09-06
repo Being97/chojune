@@ -40,11 +40,17 @@ async function fetchAllDataSources(dataSourceId: string) {
   let startCursor: string | undefined = undefined;
 
   while (hasMore) {
-    const response = await (notion as any).dataSources.query({
+    // ✅ response 변수에 explicit 타입 단언(any)을 추가하여 암시적 any 빌드 에러 해결
+    const response: {
+      results: any[];
+      has_more: boolean;
+      next_cursor: string | null;
+    } = await (notion as any).dataSources.query({
       data_source_id: dataSourceId,
       start_cursor: startCursor,
       page_size: 100,
     });
+
     results = results.concat(response.results);
     hasMore = response.has_more;
     startCursor = response.next_cursor ?? undefined;
