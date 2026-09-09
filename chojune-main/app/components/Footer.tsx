@@ -25,7 +25,7 @@ export default function Footer() {
               </span>
           </div>
           <p className="text-xs text-slate-500 font-medium">
-            © 2026 Studio Chojune. All Rights Reserved.
+            © 2026 Project Chojune. All Rights Reserved.
           </p>
         </div>
 
@@ -35,10 +35,10 @@ export default function Footer() {
             <span className="text-slate-500 mr-2">상호명</span> 프로젝트조준
           </div>
           <div>
-            <span className="text-slate-500 mr-2">공동대표</span> 이하은, 강솔빈
+            <span className="text-slate-500 mr-2">공동대표</span> 강솔빈, 이하은
           </div>
           <div>
-            <span className="text-slate-500 mr-2">연락처</span> 070-8095-9825
+            <span className="text-slate-500 mr-2">연락처</span> 010-4159-8923
           </div>
           <div>
             <span className="text-slate-500 mr-2">이메일</span> project.chojune@gmail.com
@@ -47,7 +47,7 @@ export default function Footer() {
             <span className="text-slate-500 mr-2">Instagram</span> @project_chojune
           </div>
           <div className="sm:col-span-2 mt-2">
-            <span className="text-slate-500 mr-2">주소</span> 서울특별시
+            <span className="text-slate-500 mr-2">주소</span> 서울특별시 영등포구 양평로21길 20 (캠퍼스디 서울)
           </div>
         </div>
 

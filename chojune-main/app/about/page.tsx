@@ -50,6 +50,19 @@ export default function AboutPage() {
   // 대표
   const team = [
     {
+      name: "강솔빈",
+      role: "공동 대표",
+      image: "/profile_kang.png",
+      education: [
+        "POSTECH 화학공학 학사"
+      ],
+      experience: [
+        "(현) 과학커뮤니케이터 6년차",
+        "(현) 국립중앙과학관 MOU",
+        "(전) KBS '과학으로 보는 세상 SEE' MC"
+      ]
+    },
+    {
       name: "이하은",
       role: "공동 대표",
       image: "/profile_lee.jpg",
@@ -62,19 +75,6 @@ export default function AboutPage() {
         "(전) 국립중앙과학관 연구원"
       ]
     },
-    {
-      name: "강솔빈",
-      role: "공동 대표",
-      image: "/profile_kang.png",
-      education: [
-        "POSTECH 화학공학 학사"
-      ],
-      experience: [
-        "(현) 과학커뮤니케이터 6년차",
-        "(현) 국립중앙과학관 MOU",
-        "(전) KBS '과학으로 보는 세상 SEE' MC"
-      ]
-    }
   ];
 
   return (

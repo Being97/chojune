@@ -5,6 +5,7 @@ import Image from "next/image";
 
 interface Program {
   id: string;
+  projectId?: string;
   title: string;
   isOpen: boolean;
   startDate: string;
@@ -17,9 +18,10 @@ interface Program {
 interface Timeslot {
   id: string;
   name: string;
-  time: string;
+  time?: string;
   maxCapacity: number;
   projectIds: string[];
+  isTeamCapacity?: boolean;
 }
 
 export default function ReservationPage() {
@@ -27,8 +29,8 @@ export default function ReservationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [timeslots, setTimeslots] = useState<Timeslot[]>([]);
-  
-  // 날짜_타임슬롯ID 기준 예약된 인원 Map ({ "2026-03-10_timeslotId": 3 })
+
+  // 날짜_타임슬롯ID/Name 기준 예약 수량 Map ({ "2026-03-10_timeslotId": 3 })
   const [reservedCountsMap, setReservedCountsMap] = useState<Record<string, number>>({});
 
   // 선택 상태
@@ -40,8 +42,8 @@ export default function ReservationPage() {
   const [form, setForm] = useState({
     name: "",
     phone: "",
-    count: 1,
-    message: ""
+    count: "1명", // 주관식 자유 입력
+    message: "",
   });
   const [noticeAgreed, setNoticeAgreed] = useState(false);
 
@@ -54,7 +56,7 @@ export default function ReservationPage() {
       const res = await fetch("/api/notion/reservation");
       if (!res.ok) throw new Error("Failed to fetch data");
       const data = await res.json();
-      
+
       setPrograms(data.programs || []);
       setTimeslots(data.timeslots || []);
       setReservedCountsMap(data.reservedCountsMap || {});
@@ -62,7 +64,7 @@ export default function ReservationPage() {
       if (data.programs && data.programs.length > 0 && !selectedProgram) {
         const firstProg = data.programs[0];
         setSelectedProgram(firstProg);
-        
+
         if (firstProg.startDate) {
           const parsed = new Date(firstProg.startDate);
           if (!isNaN(parsed.getTime())) {
@@ -77,7 +79,6 @@ export default function ReservationPage() {
     }
   };
 
-  // ✅ React Compiler 린트 경고 해결 지점 (Line 81)
   useEffect(() => {
     const init = async () => {
       await fetchData();
@@ -99,18 +100,26 @@ export default function ReservationPage() {
     }
   };
 
-  // 선택된 프로그램에 해당하는 타임슬롯 필터링
+  // 선택된 프로그램에 해당하는 타임슬롯만 필터링
   const programTimeslots = useMemo(() => {
     if (!selectedProgram) return [];
-    return timeslots.filter(slot => 
-      slot.projectIds.length === 0 || slot.projectIds.includes(selectedProgram.id)
-    );
+    return timeslots.filter((slot) => {
+      // 프로젝트 식별자가 없는 회차는 모든 프로그램에 공통 적용
+      if (!slot.projectIds || slot.projectIds.length === 0) return true;
+      // 특정 프로젝트에 귀속된 회차는 해당 프로젝트의 ID/projectId/title과 매칭될 때만 노출
+      return slot.projectIds.some(
+        (id) =>
+          id === selectedProgram.id ||
+          (selectedProgram.projectId && id === selectedProgram.projectId) ||
+          (selectedProgram.title && id === selectedProgram.title)
+      );
+    });
   }, [selectedProgram, timeslots]);
 
   // 선택된 프로그램의 운영 가능 날짜 목록
   const availableDatesSet = useMemo(() => {
     const dates = new Set<string>();
-    
+
     if (selectedProgram && selectedProgram.startDate) {
       const start = new Date(selectedProgram.startDate);
       const end = selectedProgram.endDate ? new Date(selectedProgram.endDate) : start;
@@ -130,14 +139,24 @@ export default function ReservationPage() {
     return dates;
   }, [selectedProgram]);
 
-  // 선택된 날짜의 타임슬롯 목록 및 '날짜별 실시간 잔여 정원' 계산
+  // 선택된 날짜의 타임슬롯 목록 및 '날짜별 실시간 잔여 정원/팀' 계산
   const selectedDateTimeslots = useMemo(() => {
-    if (!selectedDate) return [];
-    
+    if (!selectedDate || !selectedProgram) return [];
+
     return programTimeslots
-      .map(slot => {
-        const key = `${selectedDate}_${slot.id}`;
-        const reservedCount = reservedCountsMap[key] || 0;
+      .map((slot) => {
+        const keyById = `${selectedDate}_${slot.id}`;
+        const keyByName = `${selectedDate}_${slot.name}`;
+        const keyWithProgId = selectedProgram.projectId ? `${selectedDate}_${selectedProgram.projectId}_${slot.id}` : "";
+        const keyWithProgTitle = selectedProgram.title ? `${selectedDate}_${selectedProgram.title}_${slot.id}` : "";
+
+        const reservedCount =
+          (keyWithProgId ? reservedCountsMap[keyWithProgId] : undefined) ??
+          (keyWithProgTitle ? reservedCountsMap[keyWithProgTitle] : undefined) ??
+          reservedCountsMap[keyById] ??
+          reservedCountsMap[keyByName] ??
+          0;
+
         const remainingCapacity = Math.max(0, slot.maxCapacity - reservedCount);
         const isSoldOut = remainingCapacity <= 0;
 
@@ -145,20 +164,20 @@ export default function ReservationPage() {
           ...slot,
           reservedCount,
           remainingCapacity,
-          isSoldOut
+          isSoldOut,
         };
       })
       .sort((a, b) => {
         const valA = a.time || a.name || "";
         const valB = b.time || b.name || "";
-        return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+        return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: "base" });
       });
-  }, [selectedDate, programTimeslots, reservedCountsMap]);
+  }, [selectedDate, selectedProgram, programTimeslots, reservedCountsMap]);
 
   // 현재 선택한 타임슬롯의 남은 정원 정보
   const activeSelectedSlot = useMemo(() => {
     if (!selectedTimeslot || !selectedDate) return null;
-    return selectedDateTimeslots.find(s => s.id === selectedTimeslot.id) || null;
+    return selectedDateTimeslots.find((s) => s.id === selectedTimeslot.id) || null;
   }, [selectedTimeslot, selectedDateTimeslots, selectedDate]);
 
   // 달력 Grid 생성
@@ -186,7 +205,7 @@ export default function ReservationPage() {
       days.push({
         dateStr,
         dayNum: day,
-        isCurrentMonth: true
+        isCurrentMonth: true,
       });
     }
 
@@ -194,11 +213,11 @@ export default function ReservationPage() {
   }, [currentMonth]);
 
   const prevMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
 
   const nextMonth = () => {
-    setCurrentMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
   };
 
   // 예약 제출 처리
@@ -209,14 +228,31 @@ export default function ReservationPage() {
       return;
     }
 
+    if (!form.count || !form.count.trim()) {
+      alert("예약 인원을 입력해 주세요.");
+      return;
+    }
+
     if (selectedProgram.notice && !noticeAgreed) {
       alert("주의사항을 확인하시고 동의 체크박스에 체크해 주세요.");
       return;
     }
 
-    if (form.count > activeSelectedSlot.remainingCapacity) {
-      alert(`신청 인원(${form.count}명)이 잔여 수량(${activeSelectedSlot.remainingCapacity}명)을 초과했습니다.`);
-      return;
+    const matchedCount = form.count.match(/\d+/);
+    const parsedCountNum = matchedCount ? parseInt(matchedCount[0], 10) : 1;
+
+    if (activeSelectedSlot.isTeamCapacity) {
+      if (activeSelectedSlot.remainingCapacity < 1) {
+        alert("선택하신 회차는 이미 팀 예약이 마감되었습니다.");
+        return;
+      }
+    } else {
+      if (parsedCountNum > activeSelectedSlot.remainingCapacity) {
+        alert(
+          `신청 인원(${parsedCountNum}명)이 남은 잔여 수량(${activeSelectedSlot.remainingCapacity}석)을 초과했습니다.`
+        );
+        return;
+      }
     }
 
     try {
@@ -233,8 +269,8 @@ export default function ReservationPage() {
           timeslotName: activeSelectedSlot.name,
           count: form.count,
           message: form.message,
-          selectedDate: selectedDate
-        })
+          selectedDate: selectedDate,
+        }),
       });
 
       const data = await res.json();
@@ -243,15 +279,15 @@ export default function ReservationPage() {
       }
 
       alert("예약 신청이 완료되었습니다! 확인 후 안내 연락을 드리겠습니다.");
-      
-      setForm({ name: "", phone: "", count: 1, message: "" });
+
+      setForm({ name: "", phone: "", count: "1명", message: "" });
       setNoticeAgreed(false);
       setSelectedTimeslot(null);
 
       await fetchData(true);
-
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "예약 제출에 실패했습니다. 다시 시도해 주세요.";
+      const errorMessage =
+        err instanceof Error ? err.message : "예약 제출에 실패했습니다. 다시 시도해 주세요.";
       alert(errorMessage);
     } finally {
       setSubmitting(false);
@@ -270,17 +306,20 @@ export default function ReservationPage() {
   return (
     <div className="bg-slate-50 min-h-screen py-12 md:py-20 px-4 sm:px-6">
       <div className="max-w-4xl mx-auto space-y-10">
-        
         {/* Header */}
         <div className="text-center space-y-3">
-          <span className="text-blue-600 font-bold uppercase tracking-widest text-xs">CHOJUNE Reservation</span>
+          <span className="text-blue-600 font-bold uppercase tracking-widest text-xs">
+            CHOJUNE Reservation
+          </span>
           <h1 className="text-3xl md:text-4xl font-black text-slate-900">프로그램 예약 신청</h1>
         </div>
 
         {/* 1. Open 프로그램 선택 */}
         <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
-            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">1</span>
+            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">
+              1
+            </span>
             <h2 className="text-lg font-bold text-slate-800">예약 Open 프로그램</h2>
           </div>
 
@@ -330,13 +369,18 @@ export default function ReservationPage() {
                           </span>
                           {prog.startDate && (
                             <span className="text-xs text-slate-400 font-medium">
-                              {prog.startDate} {prog.endDate && prog.endDate !== prog.startDate ? `~ ${prog.endDate}` : ""}
+                              {prog.startDate}{" "}
+                              {prog.endDate && prog.endDate !== prog.startDate
+                                ? `~ ${prog.endDate}`
+                                : ""}
                             </span>
                           )}
                         </div>
                         <h3 className="font-bold text-slate-900 text-base mb-1">{prog.title}</h3>
                         {prog.description && (
-                          <p className="text-xs text-slate-500 line-clamp-2">{prog.description}</p>
+                          <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed mt-2">
+                            {prog.description}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -352,7 +396,9 @@ export default function ReservationPage() {
           <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center space-x-2">
-                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">2</span>
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">
+                  2
+                </span>
                 <h2 className="text-lg font-bold text-slate-800">날짜 선택</h2>
               </div>
               <div className="flex items-center space-x-3">
@@ -427,7 +473,9 @@ export default function ReservationPage() {
         {selectedDate && (
           <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-4">
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
-              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">3</span>
+              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">
+                3
+              </span>
               <h2 className="text-lg font-bold text-slate-800">회차(시간) 선택</h2>
               <span className="text-xs text-slate-400 font-medium ml-2">({selectedDate})</span>
             </div>
@@ -457,7 +505,11 @@ export default function ReservationPage() {
                       }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                        <span className={`font-bold text-xs md:text-sm truncate ${isSelected ? "text-white" : "text-slate-900"}`}>
+                        <span
+                          className={`font-bold text-xs md:text-sm truncate ${
+                            isSelected ? "text-white" : "text-slate-900"
+                          }`}
+                        >
                           {slot.name}
                         </span>
                         {isSoldOut ? (
@@ -465,15 +517,35 @@ export default function ReservationPage() {
                             마감
                           </span>
                         ) : (
-                          <span className={`text-[10px] md:text-[11px] font-bold ${isSelected ? "text-blue-100" : "text-blue-600"}`}>
-                            잔여 {slot.remainingCapacity}석
+                          <span
+                            className={`text-[10px] md:text-[11px] font-bold ${
+                              isSelected ? "text-blue-100" : "text-blue-600"
+                            }`}
+                          >
+                            {slot.isTeamCapacity
+                              ? `잔여 ${slot.remainingCapacity}팀`
+                              : `잔여 ${slot.remainingCapacity}석`}
                           </span>
                         )}
                       </div>
-                      {slot.time && (
-                        <p className={`text-[11px] md:text-xs ${isSelected ? "text-blue-100" : "text-slate-500"}`}>
+                      {slot.time ? (
+                        <p
+                          className={`text-[11px] md:text-xs ${
+                            isSelected ? "text-blue-100" : "text-slate-500"
+                          }`}
+                        >
                           {slot.time}
                         </p>
+                      ) : (
+                        slot.isTeamCapacity && (
+                          <span
+                            className={`text-[10px] ${
+                              isSelected ? "text-blue-100" : "text-slate-400"
+                            }`}
+                          >
+                            팀 단위 신청
+                          </span>
+                        )
                       )}
                     </button>
                   );
@@ -485,16 +557,34 @@ export default function ReservationPage() {
 
         {/* 4. 예약 정보 입력 및 주의사항 확인 */}
         {selectedTimeslot && activeSelectedSlot && (
-          <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
+          <form
+            onSubmit={handleSubmit}
+            className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6"
+          >
             <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
-              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">4</span>
+              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">
+                4
+              </span>
               <h2 className="text-lg font-bold text-slate-800">예약자 정보 입력</h2>
             </div>
 
             <div className="p-4 bg-slate-50 rounded-2xl text-xs md:text-sm text-slate-700 space-y-1">
-              <p><span className="font-bold text-slate-900">선택 프로그램:</span> {selectedProgram?.title}</p>
-              <p><span className="font-bold text-slate-900">선택 일시:</span> {selectedDate} / {activeSelectedSlot.name}</p>
-              <p><span className="font-bold text-slate-900">현재 잔여 수량:</span> <span className="text-blue-600 font-bold">{activeSelectedSlot.remainingCapacity}석</span></p>
+              <p>
+                <span className="font-bold text-slate-900">선택 프로그램:</span>{" "}
+                {selectedProgram?.title}
+              </p>
+              <p>
+                <span className="font-bold text-slate-900">선택 일시:</span> {selectedDate} /{" "}
+                {activeSelectedSlot.name}
+              </p>
+              <p>
+                <span className="font-bold text-slate-900">현재 잔여 수량:</span>{" "}
+                <span className="text-blue-600 font-bold">
+                  {activeSelectedSlot.isTeamCapacity
+                    ? `${activeSelectedSlot.remainingCapacity}팀`
+                    : `${activeSelectedSlot.remainingCapacity}석`}
+                </span>
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -530,19 +620,16 @@ export default function ReservationPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  예약 인원 수 <span className="text-red-500">*</span>
+                  예약 인원 <span className="text-red-500">*</span>
                 </label>
-                <select
+                <input
+                  type="text"
+                  required
                   value={form.count}
-                  onChange={(e) => setForm({ ...form, count: Number(e.target.value) })}
+                  onChange={(e) => setForm({ ...form, count: e.target.value })}
+                  placeholder="예: 2"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
-                >
-                  {Array.from({ length: Math.min(activeSelectedSlot.remainingCapacity, 10) }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n}명
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
 
@@ -576,7 +663,8 @@ export default function ReservationPage() {
                     className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
                   />
                   <span className="text-xs md:text-sm font-bold text-slate-800">
-                    주의사항을 모두 확인하였으며 이에 동의합니다. <span className="text-red-500">*</span>
+                    주의사항을 모두 확인하였으며 이에 동의합니다.{" "}
+                    <span className="text-red-500">*</span>
                   </span>
                 </label>
               </div>
@@ -591,7 +679,6 @@ export default function ReservationPage() {
             </button>
           </form>
         )}
-
       </div>
     </div>
   );

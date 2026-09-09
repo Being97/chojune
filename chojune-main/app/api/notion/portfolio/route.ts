@@ -43,6 +43,9 @@ export async function GET() {
         currentStatus = getText(activeProp) || "완료";
       }
 
+      // 안내문구 파싱 (rich_text)
+      const descriptionText = getText(props["안내문구"]);
+
       return {
         id: page.id,
         project: getText(props["프로젝트"]),
@@ -54,6 +57,7 @@ export async function GET() {
         rating: Number(getText(props["만족도"])) || 0,
         mainImage: mainImages.length > 0 ? mainImages : "",
         activityImages: activityImages,
+        description: descriptionText || "",
       };
     });
 
