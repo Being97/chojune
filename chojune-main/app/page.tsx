@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface PortfolioItem {
   id: string;
@@ -111,10 +112,10 @@ export default function HomePage() {
       {/* 라이브 프로젝트 스포트라이트 */}
       <section className="max-w-5xl mx-auto px-6 pb-32">
         {loading ? (
-          <div className="h-[480px] bg-slate-100 animate-pulse rounded-[2.5rem]" />
+          <div className="h-[520px] bg-slate-100 animate-pulse rounded-[2.5rem]" />
         ) : liveProjects.length > 0 && currentProject ? (
           <div className="relative group/section">
-            {/* 상단 헤더: 라이브 상태 배지 & 카운터 */}
+            {/* 상단 헤더: 라이브 상태 배지 & 카운터 / 모바일 화살표 */}
             <div className="flex items-center justify-between mb-4 px-2">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-3 w-3">
@@ -126,12 +127,36 @@ export default function HomePage() {
                 </span>
               </div>
 
-              {/* 페이지네이션 숫자 뱃지 */}
+              {/* 페이지네이션 숫자 뱃지 + 모바일 네비게이션 미니 버튼 */}
               {liveProjects.length > 1 && (
-                <div className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-                  <span className="text-slate-900">{String(currentIndex + 1).padStart(2, "0")}</span>
-                  <span className="mx-1">/</span>
-                  <span>{String(liveProjects.length).padStart(2, "0")}</span>
+                <div className="flex items-center gap-3">
+                  <div className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full flex items-center">
+                    <span className="text-slate-900">{String(currentIndex + 1).padStart(2, "0")}</span>
+                    <span className="mx-1">/</span>
+                    <span>{String(liveProjects.length).padStart(2, "0")}</span>
+                  </div>
+
+                  {/* 모바일 전용 미니 컨트롤러 (화면 가림 방지) */}
+                  <div className="flex items-center gap-1 md:hidden">
+                    <button
+                      onClick={handlePrev}
+                      aria-label="이전 프로젝트"
+                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center active:bg-primary active:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={handleNext}
+                      aria-label="다음 프로젝트"
+                      className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center active:bg-primary active:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -142,27 +167,44 @@ export default function HomePage() {
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                className="bg-slate-50 border border-slate-100 rounded-[2.5rem] overflow-hidden grid grid-cols-1 md:grid-cols-12 relative shadow-sm transition-all duration-300 h-auto md:h-[460px]"
+                className="bg-slate-50 border border-slate-100 rounded-[2.5rem] overflow-hidden grid grid-cols-1 md:grid-cols-12 relative shadow-sm transition-all duration-300"
               >
-                {/* 좌측: 메인 이미지 영역 */}
-                <div className="md:col-span-5 h-64 md:h-full relative overflow-hidden bg-slate-200 flex items-center justify-center shrink-0">
+                {/* 좌측/상단: 꽉 차면서도 원본 비율을 보존하는 감성 포스터 영역 */}
+                <div className="md:col-span-5 w-full bg-slate-950 flex items-center justify-center relative overflow-hidden shrink-0 min-h-[420px] md:min-h-[520px] p-2 md:p-4">
                   {currentImageUrl ? (
-                    <img
-                      key={currentImageUrl}
-                      src={currentImageUrl}
-                      alt={currentProject.project}
-                      className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-                    />
+                    <>
+                      {/* 배경 앰비언트 블러 레이어 */}
+                      <Image
+                        key={`bg-${currentImageUrl}`}
+                        src={currentImageUrl}
+                        alt=""
+                        fill
+                        className="object-cover opacity-40 blur-3xl scale-150 select-none pointer-events-none"
+                      />
+
+                      {/* 실물 포스터: 꽉 차게 커지면서 절대 잘리지 않는 원본 유지 */}
+                      <div className="relative w-full h-full max-h-[580px] aspect-[4/5] shadow-2xl rounded-2xl overflow-hidden transition-transform duration-500 hover:scale-[1.01]">
+                        <Image
+                          key={currentImageUrl}
+                          src={currentImageUrl}
+                          alt={currentProject.project}
+                          fill
+                          priority
+                          sizes="(max-width: 768px) 100vw, 45vw"
+                          className="object-contain"
+                        />
+                      </div>
+                    </>
                   ) : (
-                    <div className="text-slate-400 text-sm font-medium p-6 text-center">
-                      🖼️ 대표 이미지 없음
+                    <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm font-medium p-6 text-center">
+                      🖼️ 포스터 이미지 없음
                     </div>
                   )}
                 </div>
 
-                {/* 우측: 프로젝트 상세 내용 */}
-                <div className="md:col-span-7 p-8 md:p-10 flex flex-col justify-between h-full overflow-hidden">
-                  <div className="overflow-hidden">
+                {/* 우측/하단: 프로젝트 상세 내용 */}
+                <div className="md:col-span-7 p-6 md:p-10 flex flex-col justify-between h-full">
+                  <div>
                     <span className="text-primary font-bold uppercase tracking-[0.2em] text-xs block mb-2">
                       Spotlight #{currentIndex + 1}
                     </span>
@@ -170,7 +212,7 @@ export default function HomePage() {
                       {currentProject.project}
                     </h2>
 
-                    <p className="text-slate-500 font-medium text-sm md:text-base mb-6 leading-relaxed break-keep line-clamp-3">
+                    <p className="text-slate-500 font-medium text-sm md:text-base mb-6 leading-relaxed break-keep line-clamp-4">
                       {currentProject.description ||
                         "많은 탐험가들에게 전율을 선사하고 있는 조준의 멋진 에피소드가 지금 오프라인 현장에서 진행 중입니다. 지금 조준과 함께 탐험을 시작해 보세요!"}
                     </p>
@@ -194,13 +236,13 @@ export default function HomePage() {
                   <div className="flex flex-wrap gap-3 pt-2 mt-auto">
                     <Link
                       href="/portfolio"
-                      className="bg-slate-950 hover:bg-slate-800 text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
+                      className="flex-1 md:flex-initial text-center bg-slate-950 hover:bg-slate-800 text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
                     >
                       자세히 보기 →
                     </Link>
                     <Link
                       href="/reservation"
-                      className="bg-primary hover:bg-primary-dark text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
+                      className="flex-1 md:flex-initial text-center bg-primary hover:bg-primary-dark text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
                     >
                       지금 예약하기
                     </Link>
@@ -208,14 +250,13 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* 🌟 [UI 개선] 좌/우 플로팅 네비게이션 버튼 (프로젝트 2개 이상일 때) */}
+              {/* 데스크톱 전용 플로팅 좌/우 버튼 (모바일에서는 hidden) */}
               {liveProjects.length > 1 && (
                 <>
-                  {/* 이전 버튼 */}
                   <button
                     onClick={handlePrev}
                     aria-label="이전 프로젝트"
-                    className="absolute left-2 md:-left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/90 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-lg flex items-center justify-center hover:bg-white hover:text-primary hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group"
+                    className="hidden md:flex absolute -left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/90 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-lg items-center justify-center hover:bg-white hover:text-primary hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group"
                   >
                     <svg
                       className="w-5 h-5 transition-transform group-hover:-translate-x-0.5"
@@ -227,11 +268,10 @@ export default function HomePage() {
                     </svg>
                   </button>
 
-                  {/* 다음 버튼 */}
                   <button
                     onClick={handleNext}
                     aria-label="다음 프로젝트"
-                    className="absolute right-2 md:-right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/90 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-lg flex items-center justify-center hover:bg-white hover:text-primary hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group"
+                    className="hidden md:flex absolute -right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/90 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-lg items-center justify-center hover:bg-white hover:text-primary hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group"
                   >
                     <svg
                       className="w-5 h-5 transition-transform group-hover:translate-x-0.5"

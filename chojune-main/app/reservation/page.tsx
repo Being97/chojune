@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 
 interface Program {
@@ -38,51 +38,83 @@ export default function ReservationPage() {
   const [form, setForm] = useState({
     name: "",
     phone: "",
-    count: 1, // 숫자형 기본값
+    count: 1,
     message: "",
   });
   const [noticeAgreed, setNoticeAgreed] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
-  const fetchData = async (isRefetch = false) => {
+  const todayStr = useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
+
+  const initMonthForProgram = useCallback((prog: Program) => {
+    const today = new Date();
+    if (prog.startDate) {
+      const start = new Date(prog.startDate);
+      if (!isNaN(start.getTime())) {
+        if (start > today) {
+          setCurrentMonth(start);
+          return;
+        }
+      }
+    }
+    setCurrentMonth(today);
+  }, []);
+
+  const fetchData = useCallback(async (isRefetch = false) => {
     try {
-      if (isRefetch) setLoading(true);
+      if (isRefetch) {
+        setLoading(true);
+      }
       const res = await fetch("/api/notion/reservation");
       if (!res.ok) throw new Error("Failed to fetch data");
       const data = await res.json();
 
-      setPrograms(data.programs || []);
+      const fetchedPrograms: Program[] = data.programs || [];
+      setPrograms(fetchedPrograms);
       setTimeslots(data.timeslots || []);
       setReservedCountsMap(data.reservedCountsMap || {});
 
-      if (data.programs && data.programs.length > 0 && !selectedProgram) {
-        const firstProg = data.programs[0];
-        setSelectedProgram(firstProg);
-        if (firstProg.startDate) {
-          const parsed = new Date(firstProg.startDate);
-          if (!isNaN(parsed.getTime())) setCurrentMonth(parsed);
-        }
+      if (fetchedPrograms.length > 0) {
+        const firstProg = fetchedPrograms[0];
+        setSelectedProgram((prev) => prev ?? firstProg);
+        initMonthForProgram(firstProg);
       }
     } catch (err) {
       console.error("Reservation page fetch error:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [initMonthForProgram]);
 
+  // 💡 Cascading Render 방지를 위해 microtask 스케줄러를 적용한 useEffect
   useEffect(() => {
-    fetchData();
-  }, []);
+    let ignore = false;
+
+    async function startFetch() {
+      if (!ignore) {
+        await fetchData();
+      }
+    }
+
+    startFetch();
+
+    return () => {
+      ignore = true;
+    };
+  }, [fetchData]);
 
   const handleProgramSelect = (prog: Program) => {
     setSelectedProgram(prog);
     setSelectedDate("");
     setSelectedTimeslot(null);
     setNoticeAgreed(false);
-    if (prog.startDate) {
-      const parsed = new Date(prog.startDate);
-      if (!isNaN(parsed.getTime())) setCurrentMonth(parsed);
-    }
+    initMonthForProgram(prog);
   };
 
   const programTimeslots = useMemo(() => {
@@ -121,6 +153,8 @@ export default function ReservationPage() {
   const selectedDateTimeslots = useMemo(() => {
     if (!selectedDate || !selectedProgram) return [];
 
+    const now = new Date();
+
     return programTimeslots
       .map((slot) => {
         const keyById = `${selectedDate}_${slot.id}`;
@@ -136,15 +170,36 @@ export default function ReservationPage() {
           0;
 
         const remainingCapacity = Math.max(0, slot.maxCapacity - reservedCount);
+
+        let isTimePassed = false;
+        if (selectedDate < todayStr) {
+          isTimePassed = true;
+        } else if (selectedDate === todayStr) {
+          const timeMatch = (slot.time || slot.name || "").match(/(\d{1,2}):(\d{2})/);
+          if (timeMatch) {
+            const hour = parseInt(timeMatch[1], 10);
+            const minute = parseInt(timeMatch[2], 10);
+            const slotDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
+            const cutoffTime = new Date(slotDateTime.getTime() - 4 * 60 * 60 * 1000);
+
+            if (now >= cutoffTime) {
+              isTimePassed = true;
+            }
+          }
+        }
+
+        const isSoldOut = remainingCapacity <= 0 || isTimePassed;
+
         return {
           ...slot,
           reservedCount,
           remainingCapacity,
-          isSoldOut: remainingCapacity <= 0,
+          isSoldOut,
+          isTimePassed,
         };
       })
       .sort((a, b) => (a.time || a.name || "").localeCompare(b.time || b.name || "", undefined, { numeric: true, sensitivity: "base" }));
-  }, [selectedDate, selectedProgram, programTimeslots, reservedCountsMap]);
+  }, [selectedDate, selectedProgram, programTimeslots, reservedCountsMap, todayStr]);
 
   const activeSelectedSlot = useMemo(() => {
     if (!selectedTimeslot || !selectedDate) return null;
@@ -174,6 +229,11 @@ export default function ReservationPage() {
     e.preventDefault();
     if (!selectedProgram || !selectedDate || !activeSelectedSlot) {
       alert("프로그램, 날짜, 회차를 모두 선택해 주세요.");
+      return;
+    }
+
+    if (activeSelectedSlot.isSoldOut) {
+      alert("선택하신 회차는 예약 마감되었습니다.");
       return;
     }
 
@@ -239,7 +299,7 @@ export default function ReservationPage() {
 
   return (
     <div className="bg-slate-50 min-h-screen py-12 md:py-20 px-4 sm:px-6">
-      <div className="max-w-4xl mx-auto space-y-10">
+      <div className="max-w-5xl mx-auto space-y-10">
         {/* Header */}
         <div className="text-center space-y-3">
           <span className="text-blue-600 font-bold uppercase tracking-widest text-xs">CHOJUNE Reservation</span>
@@ -247,7 +307,7 @@ export default function ReservationPage() {
         </div>
 
         {/* 1. Open 프로그램 선택 */}
-        <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-4">
+        <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">1</span>
             <h2 className="text-lg font-bold text-slate-800">예약 Open 프로그램</h2>
@@ -256,7 +316,7 @@ export default function ReservationPage() {
           {programs.length === 0 ? (
             <div className="text-center py-8 text-slate-400 font-medium text-sm">현재 진행 중인 예약 오픈 프로그램이 없습니다.</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-6">
               {programs.map((prog) => {
                 const isSelected = selectedProgram?.id === prog.id;
                 return (
@@ -264,31 +324,65 @@ export default function ReservationPage() {
                     key={prog.id}
                     type="button"
                     onClick={() => handleProgramSelect(prog)}
-                    className={`text-left rounded-2xl border-2 transition-all overflow-hidden flex flex-col justify-between ${
-                      isSelected ? "border-blue-600 bg-blue-50/50 shadow-sm" : "border-slate-100 bg-white hover:border-slate-300"
+                    className={`w-full text-left rounded-3xl border-2 transition-all duration-300 p-5 md:p-7 cursor-pointer group ${
+                      isSelected
+                        ? "border-blue-600 bg-blue-50/20 shadow-lg shadow-blue-500/5 ring-1 ring-blue-600/20"
+                        : "border-slate-100 bg-white hover:border-slate-300 hover:shadow-md"
                     }`}
                   >
-                    {prog.thumbnail && (
-                      <div className="relative w-full h-44 bg-slate-100 overflow-hidden">
-                        {prog.thumbnail.startsWith("http") ? (
-                          <img src={prog.thumbnail} alt={prog.title} className="w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
-                        ) : (
-                          <Image src={prog.thumbnail} alt={prog.title} fill className="object-cover transition-transform duration-300 hover:scale-105" />
-                        )}
-                      </div>
-                    )}
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="inline-block px-2.5 py-1 text-[11px] font-bold rounded-full bg-blue-100 text-blue-700">OPEN</span>
-                          {prog.startDate && (
-                            <span className="text-xs text-slate-400 font-medium">
-                              {prog.startDate} {prog.endDate && prog.endDate !== prog.startDate ? `~ ${prog.endDate}` : ""}
-                            </span>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-center">
+                      {prog.thumbnail && (
+                        <div className="md:col-span-5 lg:col-span-4 w-full flex justify-center">
+                          <div className="relative w-full aspect-[3/4] flex items-center justify-center">
+                            {prog.thumbnail.startsWith("http") ? (
+                              <img
+                                src={prog.thumbnail}
+                                alt={prog.title}
+                                className="w-full h-full object-contain rounded-2xl shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-[1.02]"
+                              />
+                            ) : (
+                              <Image
+                                src={prog.thumbnail}
+                                alt={prog.title}
+                                fill
+                                className="object-contain rounded-2xl shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-[1.02]"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className={`w-full flex flex-col justify-between space-y-4 ${prog.thumbnail ? "md:col-span-7 lg:col-span-8" : "md:col-span-12"}`}>
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="inline-block px-3 py-1 text-[11px] font-bold rounded-full bg-blue-100 text-blue-700 tracking-tight">OPEN</span>
+                            {prog.startDate && (
+                              <span className="text-xs text-slate-500 font-medium bg-slate-100/80 px-3 py-1 rounded-full">
+                                📅 {prog.startDate} {prog.endDate && prog.endDate !== prog.startDate ? `~ ${prog.endDate}` : ""}
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 className="font-extrabold text-slate-900 text-xl md:text-2xl leading-snug tracking-tight">{prog.title}</h3>
+
+                          {prog.description && (
+                            <p className="text-slate-600 text-xs md:text-sm leading-relaxed whitespace-pre-line pt-1">
+                              {prog.description}
+                            </p>
                           )}
                         </div>
-                        <h3 className="font-bold text-slate-900 text-base mb-1">{prog.title}</h3>
-                        {prog.description && <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed mt-2">{prog.description}</p>}
+
+                        <div className="pt-3 flex items-center justify-end">
+                          <span
+                            className={`text-xs md:text-sm font-bold px-4 py-2 rounded-xl transition-all ${
+                              isSelected
+                                ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                                : "bg-slate-100 text-slate-600 group-hover:bg-slate-200"
+                            }`}
+                          >
+                            {isSelected ? "✓ 선택됨" : "프로그램 선택하기"}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -332,7 +426,8 @@ export default function ReservationPage() {
             <div className="grid grid-cols-7 gap-2">
               {calendarGrid.map((cell, idx) => {
                 if (!cell) return <div key={`empty-${idx}`} className="h-12 md:h-14" />;
-                const hasSlot = availableDatesSet.has(cell.dateStr);
+                const isPastDate = cell.dateStr < todayStr;
+                const hasSlot = availableDatesSet.has(cell.dateStr) && !isPastDate;
                 const isSelected = selectedDate === cell.dateStr;
 
                 return (
@@ -364,10 +459,13 @@ export default function ReservationPage() {
         {/* 3. 회차 선택 */}
         {selectedDate && (
           <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
-              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">3</span>
-              <h2 className="text-lg font-bold text-slate-800">회차(시간) 선택</h2>
-              <span className="text-xs text-slate-400 font-medium ml-2">({selectedDate})</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-2">
+              <div className="flex items-center space-x-2">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">3</span>
+                <h2 className="text-lg font-bold text-slate-800">회차(시간) 선택</h2>
+                <span className="text-xs text-slate-400 font-medium ml-2">({selectedDate})</span>
+              </div>
+              <span className="text-xs font-semibold text-amber-600">※ 예약은 프로그램 시작 4시간 전까지만 가능합니다.</span>
             </div>
 
             {selectedDateTimeslots.length === 0 ? (
@@ -395,7 +493,9 @@ export default function ReservationPage() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
                         <span className={`font-bold text-xs md:text-sm truncate ${isSelected ? "text-white" : "text-slate-900"}`}>{slot.name}</span>
                         {isSoldOut ? (
-                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-red-100 text-red-600 self-start sm:self-auto">마감</span>
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-red-100 text-red-600 self-start sm:self-auto">
+                            예약 마감
+                          </span>
                         ) : (
                           <span className={`text-[10px] md:text-[11px] font-bold ${isSelected ? "text-blue-100" : "text-blue-600"}`}>
                             {slot.isTeamCapacity ? `잔여 ${slot.remainingCapacity}팀` : `잔여 ${slot.remainingCapacity}석`}
@@ -494,7 +594,6 @@ export default function ReservationPage() {
               />
             </div>
 
-            {/* 주의사항 */}
             {selectedProgram?.notice && (
               <div className="p-5 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-4">
                 <div className="flex items-center space-x-2">

@@ -76,9 +76,7 @@ async function fetchAllDataSources(dataSourceId: string) {
 // ==========================================
 export async function GET() {
   try {
-    const programsDbId =
-      process.env.NOTION_RESERVATION_PROGRAMS_DATASOURCE_ID ||
-      process.env.NOTION_RESERVATION_PROJECTS_DATASOURCE_ID;
+    const programsDbId = process.env.NOTION_RESERVATION_PROJECTS_DATASOURCE_ID;
     const timeslotsDbId = process.env.NOTION_RESERVATION_TIMESLOTS_DATASOURCE_ID;
     const reservationsDbId = process.env.NOTION_RESERVATION_RESERVATIONS_DATASOURCE_ID;
 
@@ -295,7 +293,7 @@ export async function POST(req: Request) {
     }
 
     let resolvedCustomProjectId = programId || "";
-    let resolvedProgramTitle = programTitle || "";
+    const resolvedProgramTitle = programTitle || "";
     let resolvedTimeslotName = timeslotName || "";
     let maxCapacity = 10;
     let isTeamCapacity = false;
