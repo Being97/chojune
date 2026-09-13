@@ -38,7 +38,7 @@ export default function Footer() {
             <span className="text-slate-500 mr-2">공동대표</span> 강솔빈, 이하은
           </div>
           <div>
-            <span className="text-slate-500 mr-2">연락처</span> 010-4159-8923
+            <span className="text-slate-500 mr-2">연락처</span> 070-4571-9644
           </div>
           <div>
             <span className="text-slate-500 mr-2">이메일</span> project.chojune@gmail.com
