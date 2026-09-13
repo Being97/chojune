@@ -282,12 +282,13 @@ export async function GET() {
 }
 
 // ==========================================
-// 2. POST: 예약 생성 및 서버 측 잔여 수량 검증
+// 2. POST: 예약 생성 및 서버 측 잔여 수량 검증 (관리자 알림 추가)
 // ==========================================
 export async function POST(req: Request) {
   try {
     const timeslotsDbId = process.env.NOTION_RESERVATION_TIMESLOTS_DATASOURCE_ID;
     const reservationsDbId = process.env.NOTION_RESERVATION_RESERVATIONS_DATASOURCE_ID;
+    const adminUserId = process.env.NOTION_ADMIN_USER_ID;
 
     if (!reservationsDbId) {
       return NextResponse.json({ error: "Missing NOTION_RESERVATION_RESERVATIONS_DATASOURCE_ID" }, { status: 500 });
@@ -389,7 +390,7 @@ export async function POST(req: Request) {
       예약자: { rich_text: [{ text: { content: name } }] },
       연락처: { rich_text: [{ text: { content: phone } }] },
       인원: { rich_text: [{ text: { content: requestCountText } }] },
-      예약상태: { multi_select: [{ name: "예약신청" }] },
+      예약상태: { select: { name: "예약신청" } },
     };
 
     if (email) newPageProperties["이메일"] = { email };
@@ -398,10 +399,83 @@ export async function POST(req: Request) {
       newPageProperties["요청사항"] = { rich_text: [{ text: { content: message } }] };
     }
 
+    // --- 1. 페이지 생성 (본문 제외한 메타데이터 등록) ---
     const response = await notion.pages.create({
       parent: { data_source_id: reservationsDbId } as any,
       properties: newPageProperties,
     });
+
+    // --- 2. 본문 블록(children) 구성 및 추가 (페이지 생성과 분리하여 SDK validation 이슈 방지) ---
+    const childrenBlocks: any[] = [];
+    const isValidAdminId =
+      typeof adminUserId === "string" &&
+      adminUserId.trim().length > 0 &&
+      adminUserId !== "undefined";
+
+    if (isValidAdminId) {
+      childrenBlocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            {
+              type: "mention",
+              mention: {
+                type: "user",
+                user: {
+                  object: "user",
+                  id: adminUserId.trim(),
+                },
+              },
+            },
+            {
+              type: "text",
+              text: { content: " 새로운 예약이 접수되었습니다!" },
+            },
+          ],
+        },
+      });
+    } else {
+      childrenBlocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            {
+              type: "text",
+              text: { content: "🔔 새로운 예약이 접수되었습니다!" },
+            },
+          ],
+        },
+      });
+    }
+
+    // 예약 요약 콜아웃 블록 추가
+    childrenBlocks.push({
+      object: "block",
+      type: "callout",
+      callout: {
+        icon: { emoji: "📌" },
+        rich_text: [
+          {
+            type: "text",
+            text: {
+              content: `[${resolvedProgramTitle}] ${name}님 (${phone}) - ${selectedDate || ""} ${resolvedTimeslotName} (${requestCountText})`,
+            },
+          },
+        ],
+      },
+    });
+
+    // 노션 본문 블록 append 호출 (오류 발생 시에도 예약 데이터 저장은 유지)
+    try {
+      await notion.blocks.children.append({
+        block_id: response.id,
+        children: childrenBlocks,
+      });
+    } catch (appendError) {
+      console.error("Notion block append error (reservation page was created):", appendError);
+    }
 
     return NextResponse.json({ success: true, pageId: response.id });
   } catch (error: unknown) {
