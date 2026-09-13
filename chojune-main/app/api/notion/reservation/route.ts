@@ -91,20 +91,28 @@ export async function GET() {
       fetchAllDataSources(reservationsDbId),
     ]);
 
-    // --- Programs 파싱 ---
+    // --- Programs 파싱 (통합 Projects DB 스키마 반영) ---
     const programs = programsRaw
       .map((page: any) => {
         const props = page.properties;
 
-        const title = getPropValue(props["프로젝트명"]) || "제목 없음";
-        const projectId =
-          getPropValue(props["project_id"]) || getPropValue(props["프로젝트ID"]) || page.id;
-        const isOpen = getPropValue(props["Open"]) ?? true;
-        const description = getPropValue(props["설명"]) || "";
-        const notice = getPropValue(props["주의사항"]) || "";
+        const title = getPropValue(props["프로젝트명"]) || getPropValue(props["프로젝트"]) || "제목 없음";
+        const projectId = getPropValue(props["project_id"]) || getPropValue(props["프로젝트ID"]) || page.id;
+        
+        // 예약Open 체크박스
+        const resOpenVal = getPropValue(props["예약Open"]) ?? getPropValue(props["예약 Open"]);
+        const reservationOpen = Boolean(resOpenVal);
+
+        const isOngoing = Boolean(getPropValue(props["Ongoing"]));
+        const reservationDescription = getPropValue(props["예약설명"]) || "";
+        const description = getPropValue(props["안내문구"]) || getPropValue(props["설명"]) || "";
+        const notice = getPropValue(props["예약주의사항"]) || getPropValue(props["주의사항"]) || "";
+        
+        const location = getPropValue(props["장소"]) || "";
+        const organizer = getPropValue(props["주관기관"]) || "";
 
         let thumbnail = "";
-        const filesVal = getFiles(props["썸네일"]);
+        const filesVal = getFiles(props["메인사진"]) || getFiles(props["썸네일"]);
         if (Array.isArray(filesVal) && filesVal.length > 0) {
           thumbnail = filesVal[0];
         } else if (typeof filesVal === "string") {
@@ -127,15 +135,19 @@ export async function GET() {
           id: page.id,
           projectId,
           title,
-          isOpen,
+          reservationOpen,
+          isOngoing,
           startDate,
           endDate,
+          reservationDescription,
           description,
           notice,
+          location,   
+          organizer,  
           thumbnail,
         };
       })
-      .filter((p) => p.isOpen);
+      .filter((p) => p.reservationOpen);
 
     // --- Timeslots 파싱 ---
     const timeslots = timeslotsRaw.map((page: any) => {
@@ -147,7 +159,6 @@ export async function GET() {
       const maxCapacity = Number(rawCapacity) || 10;
       const isTeamCapacity = Boolean(getPropValue(props["팀신청여부"]));
 
-      // projectIds: relation page ID, rich_text, 또는 프로젝트명에서 모든 식별자 수집
       const projectIdsSet = new Set<string>();
 
       if (props["project_id"]?.relation && Array.isArray(props["project_id"].relation)) {
@@ -298,13 +309,11 @@ export async function POST(req: Request) {
     let maxCapacity = 10;
     let isTeamCapacity = false;
 
-    // 회차 DB와 예약 DB를 병렬로 조회하여 개별 retrieve 요청(타임아웃 유발 원인)을 제거
     const [timeslotsRaw, allReservations] = await Promise.all([
       timeslotsDbId ? fetchAllDataSources(timeslotsDbId) : Promise.resolve([]),
       fetchAllDataSources(reservationsDbId),
     ]);
 
-    // 1. 요청된 타임슬롯 매칭 및 정원 정보 추출
     const matchedTimeslotPage = timeslotsRaw.find(
       (page: any) => page.id === timeslotId || getPropValue(page.properties["회차"]) === timeslotName
     );
@@ -323,7 +332,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. 서버 측 잔여 수량 검증
     let currentReservedCount = 0;
     allReservations.forEach((page: any) => {
       const props = page.properties;
@@ -373,7 +381,6 @@ export async function POST(req: Request) {
 
     const nowIsoString = new Date().toISOString();
 
-    // 3. Notion DB 프로퍼티 구성
     const newPageProperties: Record<string, any> = {
       프로젝트명: { title: [{ text: { content: resolvedProgramTitle || "프로젝트명 없음" } }] },
       project_id: { rich_text: [{ text: { content: resolvedCustomProjectId || "" } }] },
@@ -391,7 +398,6 @@ export async function POST(req: Request) {
       newPageProperties["요청사항"] = { rich_text: [{ text: { content: message } }] };
     }
 
-    // 4. 노션 페이지 생성
     const response = await notion.pages.create({
       parent: { data_source_id: reservationsDbId } as any,
       properties: newPageProperties,

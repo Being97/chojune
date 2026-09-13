@@ -7,12 +7,16 @@ interface Program {
   id: string;
   projectId?: string;
   title: string;
-  isOpen: boolean;
+  reservationOpen: boolean;
+  isOngoing?: boolean;
   startDate: string;
   endDate: string;
-  description: string;
+  reservationDescription: string;
+  description?: string;
   notice?: string;
   thumbnail?: string;
+  location?: string;
+  organizer?: string;
 }
 
 interface Timeslot {
@@ -79,20 +83,13 @@ export default function ReservationPage() {
       setPrograms(fetchedPrograms);
       setTimeslots(data.timeslots || []);
       setReservedCountsMap(data.reservedCountsMap || {});
-
-      if (fetchedPrograms.length > 0) {
-        const firstProg = fetchedPrograms[0];
-        setSelectedProgram((prev) => prev ?? firstProg);
-        initMonthForProgram(firstProg);
-      }
     } catch (err) {
       console.error("Reservation page fetch error:", err);
     } finally {
       setLoading(false);
     }
-  }, [initMonthForProgram]);
+  }, []);
 
-  // 💡 Cascading Render 방지를 위해 microtask 스케줄러를 적용한 useEffect
   useEffect(() => {
     let ignore = false;
 
@@ -298,16 +295,16 @@ export default function ReservationPage() {
   }
 
   return (
-    <div className="bg-slate-50 min-h-screen py-12 md:py-20 px-4 sm:px-6">
-      <div className="max-w-5xl mx-auto space-y-10">
+    <div className="bg-slate-50 min-h-screen py-8 sm:py-12 md:py-20 px-3 sm:px-6">
+      <div className="max-w-5xl mx-auto space-y-8 sm:space-y-10">
         {/* Header */}
         <div className="text-center space-y-3">
           <span className="text-blue-600 font-bold uppercase tracking-widest text-xs">CHOJUNE Reservation</span>
-          <h1 className="text-3xl md:text-4xl font-black text-slate-900">프로그램 예약 신청</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900">프로그램 예약 신청</h1>
         </div>
 
         {/* 1. Open 프로그램 선택 */}
-        <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
+        <div className="bg-white rounded-3xl p-5 sm:p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
           <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
             <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">1</span>
             <h2 className="text-lg font-bold text-slate-800">예약 Open 프로그램</h2>
@@ -319,6 +316,8 @@ export default function ReservationPage() {
             <div className="space-y-6">
               {programs.map((prog) => {
                 const isSelected = selectedProgram?.id === prog.id;
+                const displayDesc = prog.reservationDescription || prog.description || "";
+
                 return (
                   <button
                     key={prog.id}
@@ -353,21 +352,40 @@ export default function ReservationPage() {
                       )}
 
                       <div className={`w-full flex flex-col justify-between space-y-4 ${prog.thumbnail ? "md:col-span-7 lg:col-span-8" : "md:col-span-12"}`}>
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <span className="inline-block px-3 py-1 text-[11px] font-bold rounded-full bg-blue-100 text-blue-700 tracking-tight">OPEN</span>
-                            {prog.startDate && (
-                              <span className="text-xs text-slate-500 font-medium bg-slate-100/80 px-3 py-1 rounded-full">
-                                📅 {prog.startDate} {prog.endDate && prog.endDate !== prog.startDate ? `~ ${prog.endDate}` : ""}
-                              </span>
-                            )}
                           </div>
 
                           <h3 className="font-extrabold text-slate-900 text-xl md:text-2xl leading-snug tracking-tight">{prog.title}</h3>
 
-                          {prog.description && (
-                            <p className="text-slate-600 text-xs md:text-sm leading-relaxed whitespace-pre-line pt-1">
-                              {prog.description}
+                          {/* 프로그램 상세 정보 영역 (날짜, 장소, 주관기관) */}
+                          <div className="space-y-2 pt-1 border-t border-slate-100 md:border-none md:pt-0">
+                            {prog.startDate && (
+                              <div className="flex items-start text-xs md:text-sm text-slate-600 font-medium">
+                                <span className="text-slate-400 w-20 shrink-0">📅 날짜:</span>
+                                <span className="text-slate-800">
+                                  {prog.startDate} {prog.endDate && prog.endDate !== prog.startDate ? `~ ${prog.endDate}` : ""}
+                                </span>
+                              </div>
+                            )}
+                            {prog.location && (
+                              <div className="flex items-start text-xs md:text-sm text-slate-600 font-medium">
+                                <span className="text-slate-400 w-20 shrink-0">📍 장소:</span>
+                                <span className="text-slate-800 break-keep">{prog.location}</span>
+                              </div>
+                            )}
+                            {prog.organizer && (
+                              <div className="flex items-start text-xs md:text-sm text-slate-600 font-medium">
+                                <span className="text-slate-400 w-20 shrink-0">🏛️ 주관기관:</span>
+                                <span className="text-slate-800 break-keep">{prog.organizer}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {displayDesc && (
+                            <p className="text-slate-600 text-xs md:text-sm leading-relaxed whitespace-pre-line pt-2 border-t border-slate-100">
+                              {displayDesc}
                             </p>
                           )}
                         </div>
@@ -392,238 +410,244 @@ export default function ReservationPage() {
           )}
         </div>
 
-        {/* 2. 날짜 선택 달력 */}
+        {/* 프로그램이 선택된 경우에만 날짜 선택, 시간 선택, 정보 입력 섹션 노출 */}
         {selectedProgram && (
-          <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center space-x-2">
-                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">2</span>
-                <h2 className="text-lg font-bold text-slate-800">날짜 선택</h2>
-              </div>
-              <div className="flex items-center space-x-3">
-                <button type="button" onClick={prevMonth} className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors text-xs font-bold">
-                  {"< 이전달"}
-                </button>
-                <span className="font-black text-sm text-slate-800">
-                  {currentMonth.getFullYear()}년 {currentMonth.getMonth() + 1}월
-                </span>
-                <button type="button" onClick={nextMonth} className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors text-xs font-bold">
-                  {"다음달 >"}
-                </button>
-              </div>
-            </div>
+          <>
+            {/* 2. 날짜 선택 달력 */}
+            <div className="bg-white rounded-3xl p-4 sm:p-6 md:p-8 border border-slate-100 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
+                <div className="flex items-center space-x-2">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shrink-0">2</span>
+                  <h2 className="text-lg font-bold text-slate-800">날짜 선택</h2>
+                </div>
 
-            <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400">
-              <span className="text-red-500">일</span>
-              <span>월</span>
-              <span>화</span>
-              <span>수</span>
-              <span>목</span>
-              <span>금</span>
-              <span className="text-blue-500">토</span>
-            </div>
-
-            <div className="grid grid-cols-7 gap-2">
-              {calendarGrid.map((cell, idx) => {
-                if (!cell) return <div key={`empty-${idx}`} className="h-12 md:h-14" />;
-                const isPastDate = cell.dateStr < todayStr;
-                const hasSlot = availableDatesSet.has(cell.dateStr) && !isPastDate;
-                const isSelected = selectedDate === cell.dateStr;
-
-                return (
-                  <button
-                    key={cell.dateStr}
-                    type="button"
-                    disabled={!hasSlot}
-                    onClick={() => {
-                      setSelectedDate(cell.dateStr);
-                      setSelectedTimeslot(null);
-                    }}
-                    className={`h-12 md:h-14 rounded-2xl flex flex-col items-center justify-center transition-all relative ${
-                      isSelected
-                        ? "bg-blue-600 text-white font-black shadow-md shadow-blue-500/20"
-                        : hasSlot
-                        ? "bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-slate-800 font-bold border border-slate-200/60 cursor-pointer"
-                        : "bg-slate-50/50 text-slate-300 font-normal cursor-not-allowed"
-                    }`}
-                  >
-                    <span className="text-sm">{cell.dayNum}</span>
-                    {hasSlot && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 absolute bottom-1.5" />}
+                <div className="flex items-center justify-between sm:justify-end space-x-2 sm:space-x-3 w-full sm:w-auto bg-slate-50 sm:bg-transparent p-1.5 sm:p-0 rounded-2xl">
+                  <button type="button" onClick={prevMonth} className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white sm:bg-transparent hover:bg-slate-100 text-slate-600 transition-colors text-xs font-bold active:scale-95">
+                    {"< 이전달"}
                   </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 3. 회차 선택 */}
-        {selectedDate && (
-          <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-2">
-              <div className="flex items-center space-x-2">
-                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">3</span>
-                <h2 className="text-lg font-bold text-slate-800">회차(시간) 선택</h2>
-                <span className="text-xs text-slate-400 font-medium ml-2">({selectedDate})</span>
+                  <span className="font-black text-sm text-slate-800 px-1">
+                    {currentMonth.getFullYear()}년 {currentMonth.getMonth() + 1}월
+                  </span>
+                  <button type="button" onClick={nextMonth} className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white sm:bg-transparent hover:bg-slate-100 text-slate-600 transition-colors text-xs font-bold active:scale-95">
+                    {"다음달 >"}
+                  </button>
+                </div>
               </div>
-              <span className="text-xs font-semibold text-amber-600">※ 예약은 프로그램 시작 4시간 전까지만 가능합니다.</span>
-            </div>
 
-            {selectedDateTimeslots.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 font-medium text-sm">선택하신 날짜에는 운영 회차가 없습니다.</div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                {selectedDateTimeslots.map((slot) => {
-                  const isSelected = selectedTimeslot?.id === slot.id;
-                  const isSoldOut = slot.isSoldOut;
+              {/* 요일 라벨 */}
+              <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-400">
+                <span className="text-red-500">일</span>
+                <span>월</span>
+                <span>화</span>
+                <span>수</span>
+                <span>목</span>
+                <span>금</span>
+                <span className="text-blue-500">토</span>
+              </div>
+
+              {/* 날짜 그리드 */}
+              <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                {calendarGrid.map((cell, idx) => {
+                  if (!cell) return <div key={`empty-${idx}`} className="h-10 sm:h-12 md:h-14" />;
+                  const isPastDate = cell.dateStr < todayStr;
+                  const hasSlot = availableDatesSet.has(cell.dateStr) && !isPastDate;
+                  const isSelected = selectedDate === cell.dateStr;
 
                   return (
                     <button
-                      key={slot.id}
+                      key={cell.dateStr}
                       type="button"
-                      disabled={isSoldOut}
-                      onClick={() => setSelectedTimeslot(slot)}
-                      className={`p-3 md:p-4 rounded-2xl border text-left transition-all ${
-                        isSoldOut
-                          ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-75"
-                          : isSelected
-                          ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
-                          : "bg-slate-50 border-slate-200 text-slate-800 hover:border-blue-400 cursor-pointer"
+                      disabled={!hasSlot}
+                      onClick={() => {
+                        setSelectedDate(cell.dateStr);
+                        setSelectedTimeslot(null);
+                      }}
+                      className={`h-10 sm:h-12 md:h-14 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all relative ${
+                        isSelected
+                          ? "bg-blue-600 text-white font-black shadow-md shadow-blue-500/20"
+                          : hasSlot
+                          ? "bg-slate-50 hover:bg-blue-50 hover:text-blue-600 text-slate-800 font-bold border border-slate-200/60 cursor-pointer"
+                          : "bg-slate-50/50 text-slate-300 font-normal cursor-not-allowed"
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                        <span className={`font-bold text-xs md:text-sm truncate ${isSelected ? "text-white" : "text-slate-900"}`}>{slot.name}</span>
-                        {isSoldOut ? (
-                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-red-100 text-red-600 self-start sm:self-auto">
-                            예약 마감
-                          </span>
-                        ) : (
-                          <span className={`text-[10px] md:text-[11px] font-bold ${isSelected ? "text-blue-100" : "text-blue-600"}`}>
-                            {slot.isTeamCapacity ? `잔여 ${slot.remainingCapacity}팀` : `잔여 ${slot.remainingCapacity}석`}
-                          </span>
-                        )}
-                      </div>
-                      {slot.time ? (
-                        <p className={`text-[11px] md:text-xs ${isSelected ? "text-blue-100" : "text-slate-500"}`}>{slot.time}</p>
-                      ) : (
-                        slot.isTeamCapacity && <span className={`text-[10px] ${isSelected ? "text-blue-100" : "text-slate-400"}`}>팀 단위 신청</span>
-                      )}
+                      <span className="text-xs sm:text-sm">{cell.dayNum}</span>
+                      {hasSlot && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 absolute bottom-1 sm:bottom-1.5" />}
                     </button>
                   );
                 })}
               </div>
+            </div>
+
+            {/* 3. 회차 선택 */}
+            {selectedDate && (
+              <div className="bg-white rounded-3xl p-5 sm:p-6 md:p-8 border border-slate-100 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shrink-0">3</span>
+                    <h2 className="text-lg font-bold text-slate-800">회차(시간) 선택</h2>
+                    <span className="text-xs text-slate-400 font-medium ml-2">({selectedDate})</span>
+                  </div>
+                  <span className="text-xs font-semibold text-amber-600">※ 예약은 프로그램 시작 4시간 전까지만 가능합니다.</span>
+                </div>
+
+                {selectedDateTimeslots.length === 0 ? (
+                  <div className="text-center py-6 text-slate-400 font-medium text-sm">선택하신 날짜에는 운영 회차가 없습니다.</div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {selectedDateTimeslots.map((slot) => {
+                      const isSelected = selectedTimeslot?.id === slot.id;
+                      const isSoldOut = slot.isSoldOut;
+
+                      return (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          disabled={isSoldOut}
+                          onClick={() => setSelectedTimeslot(slot)}
+                          className={`p-3 md:p-4 rounded-2xl border text-left transition-all ${
+                            isSoldOut
+                              ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-75"
+                              : isSelected
+                              ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20"
+                              : "bg-slate-50 border-slate-200 text-slate-800 hover:border-blue-400 cursor-pointer"
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
+                            <span className={`font-bold text-xs md:text-sm truncate ${isSelected ? "text-white" : "text-slate-900"}`}>{slot.name}</span>
+                            {isSoldOut ? (
+                              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-red-100 text-red-600 self-start sm:self-auto">
+                                예약 마감
+                              </span>
+                            ) : (
+                              <span className={`text-[10px] md:text-[11px] font-bold ${isSelected ? "text-blue-100" : "text-blue-600"}`}>
+                                {slot.isTeamCapacity ? `잔여 ${slot.remainingCapacity}팀` : `잔여 ${slot.remainingCapacity}석`}
+                              </span>
+                            )}
+                          </div>
+                          {slot.time ? (
+                            <p className={`text-[11px] md:text-xs ${isSelected ? "text-blue-100" : "text-slate-500"}`}>{slot.time}</p>
+                          ) : (
+                            slot.isTeamCapacity && <span className={`text-[10px] ${isSelected ? "text-blue-100" : "text-slate-400"}`}>팀 단위 신청</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
-          </div>
-        )}
 
-        {/* 4. 예약 정보 입력 */}
-        {selectedTimeslot && activeSelectedSlot && (
-          <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
-            <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
-              <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs">4</span>
-              <h2 className="text-lg font-bold text-slate-800">예약자 정보 입력</h2>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-2xl text-xs md:text-sm text-slate-700 space-y-1">
-              <p><span className="font-bold text-slate-900">선택 프로그램:</span> {selectedProgram?.title}</p>
-              <p><span className="font-bold text-slate-900">선택 일시:</span> {selectedDate} / {activeSelectedSlot.name}</p>
-              <p>
-                <span className="font-bold text-slate-900">현재 잔여 수량:</span>{" "}
-                <span className="text-blue-600 font-bold">
-                  {activeSelectedSlot.isTeamCapacity ? `${activeSelectedSlot.remainingCapacity}팀` : `${activeSelectedSlot.remainingCapacity}석`}
-                </span>
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  성함 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="예: 홍길동"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  연락처 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="예: 010-1234-5678"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  예약 인원 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={form.count}
-                  onChange={(e) => setForm({ ...form, count: Number(e.target.value) })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600 cursor-pointer"
-                >
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-                    <option key={num} value={num}>
-                      {num}명
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">요청사항</label>
-              <textarea
-                rows={3}
-                value={form.message}
-                onChange={(e) => setForm({ ...form, message: e.target.value })}
-                placeholder="추가 전달사항이나 요청사항이 있으시다면 입력해 주세요."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
-              />
-            </div>
-
-            {selectedProgram?.notice && (
-              <div className="p-5 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-4">
-                <div className="flex items-center space-x-2">
-                  <span className="text-amber-600 font-bold text-sm">⚠️ 예약 전 주의사항</span>
+            {/* 4. 예약 정보 입력 */}
+            {selectedTimeslot && activeSelectedSlot && (
+              <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-5 sm:p-6 md:p-8 border border-slate-100 shadow-sm space-y-6">
+                <div className="flex items-center space-x-2 border-b border-slate-100 pb-4">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shrink-0">4</span>
+                  <h2 className="text-lg font-bold text-slate-800">예약자 정보 입력</h2>
                 </div>
-                <div className="text-xs md:text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto bg-white/70 p-4 rounded-xl border border-amber-100">
-                  {selectedProgram.notice}
+
+                <div className="p-4 bg-slate-50 rounded-2xl text-xs md:text-sm text-slate-700 space-y-1">
+                  <p><span className="font-bold text-slate-900">선택 프로그램:</span> {selectedProgram?.title}</p>
+                  <p><span className="font-bold text-slate-900">선택 일시:</span> {selectedDate} / {activeSelectedSlot.name}</p>
+                  <p>
+                    <span className="font-bold text-slate-900">현재 잔여 수량:</span>{" "}
+                    <span className="text-blue-600 font-bold">
+                      {activeSelectedSlot.isTeamCapacity ? `${activeSelectedSlot.remainingCapacity}팀` : `${activeSelectedSlot.remainingCapacity}석`}
+                    </span>
+                  </p>
                 </div>
-                <label className="flex items-center space-x-3 cursor-pointer select-none pt-1">
-                  <input
-                    type="checkbox"
-                    checked={noticeAgreed}
-                    onChange={(e) => setNoticeAgreed(e.target.checked)}
-                    className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      성함 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      placeholder="예: 홍길동"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      연락처 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder="예: 010-1234-5678"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      예약 인원 <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={form.count}
+                      onChange={(e) => setForm({ ...form, count: Number(e.target.value) })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600 cursor-pointer"
+                    >
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+                        <option key={num} value={num}>
+                          {num}명
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">요청사항</label>
+                  <textarea
+                    rows={3}
+                    value={form.message}
+                    onChange={(e) => setForm({ ...form, message: e.target.value })}
+                    placeholder="추가 전달사항이나 요청사항이 있으시다면 입력해 주세요."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
                   />
-                  <span className="text-xs md:text-sm font-bold text-slate-800">
-                    주의사항을 모두 확인하였으며 이에 동의합니다. <span className="text-red-500">*</span>
-                  </span>
-                </label>
-              </div>
-            )}
+                </div>
 
-            <button
-              type="submit"
-              disabled={submitting || (!!selectedProgram?.notice && !noticeAgreed)}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl transition-colors text-sm shadow-md shadow-blue-500/10 cursor-pointer"
-            >
-              {submitting ? "예약 신청 처리 중..." : "예약 신청 완료하기"}
-            </button>
-          </form>
+                {selectedProgram?.notice && (
+                  <div className="p-5 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-amber-600 font-bold text-sm">⚠️ 예약 전 주의사항</span>
+                    </div>
+                    <div className="text-xs md:text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto bg-white/70 p-4 rounded-xl border border-amber-100">
+                      {selectedProgram.notice}
+                    </div>
+                    <label className="flex items-center space-x-3 cursor-pointer select-none pt-1">
+                      <input
+                        type="checkbox"
+                        checked={noticeAgreed}
+                        onChange={(e) => setNoticeAgreed(e.target.checked)}
+                        className="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className="text-xs md:text-sm font-bold text-slate-800">
+                        주의사항을 모두 확인하였으며 이에 동의합니다. <span className="text-red-500">*</span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submitting || (!!selectedProgram?.notice && !noticeAgreed)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl transition-colors text-sm shadow-md shadow-blue-500/10 cursor-pointer"
+                >
+                  {submitting ? "예약 신청 처리 중..." : "예약 신청 완료하기"}
+                </button>
+              </form>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -7,22 +7,19 @@ import Image from "next/image";
 interface PortfolioItem {
   id: string;
   project: string;
-  active: string | boolean;
-  date: string;
-  location: string;
-  organizer: string;
-  participants: number;
-  rating: number;
-  mainImage: string | string[];
-  activityImages: string[];
+  active?: string | boolean;
+  isOngoing?: boolean;
+  date?: string;
+  location?: string;
+  organizer?: string;
   description?: string;
+  mainImage?: string | string[];
+  reservationOpen?: boolean; // 예약 Open 여부
 }
 
-const getImageUrl = (imageProp: string | string[] | undefined | null): string => {
+const getImageUrl = (imageProp?: string | string[] | null): string => {
   if (!imageProp) return "";
-  if (Array.isArray(imageProp)) {
-    return imageProp.length > 0 ? imageProp[0] : "";
-  }
+  if (Array.isArray(imageProp)) return imageProp[0] || "";
   return typeof imageProp === "string" ? imageProp : "";
 };
 
@@ -42,6 +39,7 @@ export default function HomePage() {
 
         if (Array.isArray(data)) {
           const ongoingList = data.filter((item: PortfolioItem) => {
+            if (typeof item.isOngoing === "boolean" && item.isOngoing) return true;
             if (typeof item.active === "boolean") return item.active;
             const activeState = String(item.active || "").trim().toLowerCase();
             return (
@@ -88,7 +86,7 @@ export default function HomePage() {
   };
 
   const currentProject = liveProjects[currentIndex];
-  const currentImageUrl = currentProject ? getImageUrl(currentProject.mainImage) : "";
+  const currentImageUrl = getImageUrl(currentProject?.mainImage);
 
   return (
     <div className="bg-white">
@@ -115,7 +113,7 @@ export default function HomePage() {
           <div className="h-[520px] bg-slate-100 animate-pulse rounded-[2.5rem]" />
         ) : liveProjects.length > 0 && currentProject ? (
           <div className="relative group/section">
-            {/* 상단 헤더: 라이브 상태 배지 & 카운터 / 모바일 화살표 */}
+            {/* 상단 라이브 헤더 & 페이지네이션 */}
             <div className="flex items-center justify-between mb-4 px-2">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-3 w-3">
@@ -127,7 +125,6 @@ export default function HomePage() {
                 </span>
               </div>
 
-              {/* 페이지네이션 숫자 뱃지 + 모바일 네비게이션 미니 버튼 */}
               {liveProjects.length > 1 && (
                 <div className="flex items-center gap-3">
                   <div className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-full flex items-center">
@@ -136,7 +133,7 @@ export default function HomePage() {
                     <span>{String(liveProjects.length).padStart(2, "0")}</span>
                   </div>
 
-                  {/* 모바일 전용 미니 컨트롤러 (화면 가림 방지) */}
+                  {/* 모바일 전용 미니 이동 버튼 */}
                   <div className="flex items-center gap-1 md:hidden">
                     <button
                       onClick={handlePrev}
@@ -161,7 +158,7 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* 메인 프로젝트 카드 컨테이너 */}
+            {/* 카드 본체 */}
             <div className="relative">
               <div
                 onTouchStart={handleTouchStart}
@@ -169,11 +166,10 @@ export default function HomePage() {
                 onTouchEnd={handleTouchEnd}
                 className="bg-slate-50 border border-slate-100 rounded-[2.5rem] overflow-hidden grid grid-cols-1 md:grid-cols-12 relative shadow-sm transition-all duration-300"
               >
-                {/* 좌측/상단: 꽉 차면서도 원본 비율을 보존하는 감성 포스터 영역 */}
+                {/* 왼쪽: 메인 포스터 */}
                 <div className="md:col-span-5 w-full bg-slate-950 flex items-center justify-center relative overflow-hidden shrink-0 min-h-[420px] md:min-h-[520px] p-2 md:p-4">
                   {currentImageUrl ? (
                     <>
-                      {/* 배경 앰비언트 블러 레이어 */}
                       <Image
                         key={`bg-${currentImageUrl}`}
                         src={currentImageUrl}
@@ -181,9 +177,7 @@ export default function HomePage() {
                         fill
                         className="object-cover opacity-40 blur-3xl scale-150 select-none pointer-events-none"
                       />
-
-                      {/* 실물 포스터: 꽉 차게 커지면서 절대 잘리지 않는 원본 유지 */}
-                      <div className="relative w-full h-full max-h-[580px] aspect-[4/5] shadow-2xl rounded-2xl overflow-hidden transition-transform duration-500 hover:scale-[1.01]">
+                      <div className="relative w-full h-full max-h-[580px] aspect-[4/5] shadow-2xl rounded-2xl overflow-hidden">
                         <Image
                           key={currentImageUrl}
                           src={currentImageUrl}
@@ -197,12 +191,12 @@ export default function HomePage() {
                     </>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm font-medium p-6 text-center">
-                      🖼️ 포스터 이미지 없음
+                      🖼️ 포스터 이미지 준비 중
                     </div>
                   )}
                 </div>
 
-                {/* 우측/하단: 프로젝트 상세 내용 */}
+                {/* 오른쪽: 상세 정보 */}
                 <div className="md:col-span-7 p-6 md:p-10 flex flex-col justify-between h-full">
                   <div>
                     <span className="text-primary font-bold uppercase tracking-[0.2em] text-xs block mb-2">
@@ -212,45 +206,53 @@ export default function HomePage() {
                       {currentProject.project}
                     </h2>
 
-                    <p className="text-slate-500 font-medium text-sm md:text-base mb-6 leading-relaxed break-keep line-clamp-4">
+                    <p className="text-slate-500 font-medium text-sm md:text-base mb-6 leading-relaxed break-keep line-clamp-3">
                       {currentProject.description ||
                         "많은 탐험가들에게 전율을 선사하고 있는 조준의 멋진 에피소드가 지금 오프라인 현장에서 진행 중입니다. 지금 조준과 함께 탐험을 시작해 보세요!"}
                     </p>
 
-                    <div className="flex flex-wrap gap-2 mb-6 text-xs font-bold text-slate-600">
-                      <span className="bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 flex items-center gap-1.5 shadow-2xs">
-                        📅 {currentProject.date || "진행 기간 확인 필요"}
-                      </span>
-                      <span className="bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 flex items-center gap-1.5 shadow-2xs">
-                        📍 {currentProject.location || "장소 미정"}
-                      </span>
+                    {/* 세로 배치(flex-col)된 날짜, 장소, 주관기관 영역 */}
+                    <div className="flex flex-col gap-2 mb-8 text-xs font-bold text-slate-600">
+                      <div className="bg-white px-4 py-2.5 rounded-xl border border-slate-200/80 flex items-center gap-2 shadow-2xs">
+                        <span>📅 날짜:</span>
+                        <span className="font-medium text-slate-800">{currentProject.date || "일정 확인 필요"}</span>
+                      </div>
+                      <div className="bg-white px-4 py-2.5 rounded-xl border border-slate-200/80 flex items-center gap-2 shadow-2xs">
+                        <span>📍 장소:</span>
+                        <span className="font-medium text-slate-800">{currentProject.location || "장소 확인 필요"}</span>
+                      </div>
                       {currentProject.organizer && (
-                        <span className="bg-white px-3.5 py-2 rounded-xl border border-slate-200/80 flex items-center gap-1.5 shadow-2xs">
-                          🏛️ {currentProject.organizer}
-                        </span>
+                        <div className="bg-white px-4 py-2.5 rounded-xl border border-slate-200/80 flex items-center gap-2 shadow-2xs">
+                          <span>🏛️ 주관기관:</span>
+                          <span className="font-medium text-slate-800">{currentProject.organizer}</span>
+                        </div>
                       )}
                     </div>
                   </div>
 
-                  {/* 하단 버튼 영역 */}
+                  {/* 하단 CTA 버튼 (자세히 보기 + 조건부 지금 예약하기) */}
                   <div className="flex flex-wrap gap-3 pt-2 mt-auto">
                     <Link
                       href="/portfolio"
-                      className="flex-1 md:flex-initial text-center bg-slate-950 hover:bg-slate-800 text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
+                      className="flex-1 text-center bg-slate-950 hover:bg-slate-800 text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
                     >
                       자세히 보기 →
                     </Link>
-                    <Link
-                      href="/reservation"
-                      className="flex-1 md:flex-initial text-center bg-primary hover:bg-primary-dark text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
-                    >
-                      지금 예약하기
-                    </Link>
+
+                    {/* 예약Open 상태 감지 시 노출 */}
+                    {currentProject.reservationOpen && (
+                      <Link
+                        href="/reservation"
+                        className="flex-1 text-center bg-primary hover:bg-primary-dark text-white font-bold px-5 py-3 rounded-xl text-xs md:text-sm transition-all shadow-sm active:scale-95"
+                      >
+                        지금 예약하기
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* 데스크톱 전용 플로팅 좌/우 버튼 (모바일에서는 hidden) */}
+              {/* 데스크톱 플로팅 컨트롤러 */}
               {liveProjects.length > 1 && (
                 <>
                   <button
@@ -258,12 +260,7 @@ export default function HomePage() {
                     aria-label="이전 프로젝트"
                     className="hidden md:flex absolute -left-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/90 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-lg items-center justify-center hover:bg-white hover:text-primary hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group"
                   >
-                    <svg
-                      className="w-5 h-5 transition-transform group-hover:-translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-5 h-5 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
@@ -273,12 +270,7 @@ export default function HomePage() {
                     aria-label="다음 프로젝트"
                     className="hidden md:flex absolute -right-6 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/90 backdrop-blur-md border border-slate-200/80 text-slate-700 shadow-lg items-center justify-center hover:bg-white hover:text-primary hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer group"
                   >
-                    <svg
-                      className="w-5 h-5 transition-transform group-hover:translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-5 h-5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
@@ -286,7 +278,7 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* 하단 인디케이터 (Dot) */}
+            {/* 인디케이터 점 */}
             {liveProjects.length > 1 && (
               <div className="flex justify-center gap-2 mt-6">
                 {liveProjects.map((_, idx) => (
@@ -307,13 +299,13 @@ export default function HomePage() {
             <span className="text-2xl block mb-3">🚀</span>
             <h3 className="text-xl font-black text-slate-800 mb-2">새로운 프로젝트 준비 중!</h3>
             <p className="text-slate-400 text-sm mb-6 font-medium">
-              현재 오픈된 프로젝트가 마감되었습니다. 다음 탐험을 열심히 기획하고 있으니 잠시만 기다려주세요.
+              현재 진행 중인 프로젝트가 모두 마감되었습니다. 다음 탐험을 열심히 준비하고 있으니 기대해 주세요.
             </p>
             <Link
               href="/portfolio"
               className="inline-block bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 font-bold px-6 py-3 rounded-xl text-sm transition-all"
             >
-              지난 프로젝트 아카이브 보러가기
+              지난 프로젝트 보러가기
             </Link>
           </div>
         )}

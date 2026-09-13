@@ -4,12 +4,16 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { supabase } from "../lib/supabase";
 
 interface PortfolioItem {
   id: string;
+  projectId?: string;
   project: string;
   active: string;
+  isOngoing?: boolean;
+  reservationOpen?: boolean;
   date: string;
   location: string;
   organizer: string;
@@ -17,6 +21,9 @@ interface PortfolioItem {
   rating: number;
   mainImage: string;
   activityImages: string[];
+  description?: string;
+  reservationDescription?: string;
+  notice?: string;
 }
 
 interface ReviewItem {
@@ -50,6 +57,7 @@ function ProjectReviews({ projectName }: { projectName: string }) {
           console.error("Supabase reviews fetch error:", error);
         } else {
           setReviews(data || []);
+          setCurrentPage(1);
         }
       } catch (err) {
         console.error("Failed to load reviews:", err);
@@ -59,7 +67,6 @@ function ProjectReviews({ projectName }: { projectName: string }) {
     };
 
     fetchReviews();
-    setCurrentPage(1);
   }, [projectName]);
 
   // 페이지네이션 계산
@@ -120,7 +127,7 @@ function ProjectReviews({ projectName }: { projectName: string }) {
                 </span>
               </div>
               <p className="text-slate-700 text-xs leading-relaxed font-medium whitespace-pre-wrap">
-                "{item.review}"
+                {item.review}
               </p>
             </div>
           ))}
@@ -217,8 +224,8 @@ export default function PortfolioPage() {
         ) : items.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 items-start">
             {items.map((item) => {
-              const hasMainImage = item.mainImage && item.mainImage.startsWith("http");
-              const isActive = item.active === "진행 중" || item.active === "진행중";
+              const hasMainImage = item.mainImage && typeof item.mainImage === "string" && item.mainImage.startsWith("http");
+              const isActive = item.active === "진행 중" || item.active === "진행중" || Boolean(item.isOngoing);
 
               return (
                 <div
@@ -248,9 +255,16 @@ export default function PortfolioPage() {
                     <div>
                       <div className="flex justify-between items-start mb-4 gap-2">
                         <div className="flex flex-col gap-1">
-                          <span className={`text-xs font-black tracking-tight ${isActive ? "text-blue-600" : "text-slate-400"}`}>
-                            {isActive ? "진행 중" : "완료"}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-xs font-black tracking-tight ${isActive ? "text-blue-600" : "text-slate-400"}`}>
+                              {isActive ? "진행 중" : "완료"}
+                            </span>
+                            {item.reservationOpen && (
+                              <span className="inline-block px-2 py-0.5 text-[10px] font-black rounded-full bg-blue-600 text-white animate-pulse">
+                                예약 가능
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[11px] font-bold text-slate-400 break-keep">{item.date || "기록 대기"}</span>
                         </div>
                         {item.rating > 0 && (
@@ -263,6 +277,11 @@ export default function PortfolioPage() {
                       <h3 className="text-xl font-black text-slate-900 leading-snug group-hover:text-primary transition-colors line-clamp-2 break-keep">
                         {item.project}
                       </h3>
+                      {item.description && (
+                        <p className="text-slate-500 text-xs font-medium mt-2 line-clamp-2 break-keep">
+                          {item.description}
+                        </p>
+                      )}
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between text-xs font-bold text-slate-400">
@@ -297,13 +316,39 @@ export default function PortfolioPage() {
             </button>
 
             <div className="flex flex-col gap-1 mb-3">
-              <span className={`text-xs font-black ${selectedItem.active === "진행 중" || selectedItem.active === "진행중" ? "text-blue-600" : "text-slate-400"}`}>
-                {selectedItem.active || "완료"}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-black ${selectedItem.active === "진행 중" || selectedItem.active === "진행중" || selectedItem.isOngoing ? "text-blue-600" : "text-slate-400"}`}>
+                  {selectedItem.active || "완료"}
+                </span>
+                {selectedItem.reservationOpen && (
+                  <span className="px-2.5 py-0.5 text-[11px] font-black rounded-full bg-blue-600 text-white">
+                    🎟️ 예약 Open
+                  </span>
+                )}
+              </div>
               <span className="text-xs font-bold text-slate-400 break-keep">{selectedItem.date || "진행중"}</span>
             </div>
 
-            <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-6 break-keep">{selectedItem.project}</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-4 break-keep">{selectedItem.project}</h2>
+
+            {selectedItem.description && (
+              <p className="text-slate-600 text-sm font-medium leading-relaxed mb-6 whitespace-pre-wrap bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                {selectedItem.description}
+              </p>
+            )}
+
+            {/* 예약 Open 버튼 */}
+            {selectedItem.reservationOpen && (
+              <div className="mb-6">
+                <Link
+                  href="/reservation"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-black py-3.5 px-6 rounded-2xl text-sm transition-all shadow-md shadow-blue-500/20 active:scale-98"
+                >
+                  <span>🎟️ 지금 예약 신청하기</span>
+                  <span>→</span>
+                </Link>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-5 rounded-2xl mb-8 text-xs font-medium">
               <div>
@@ -328,7 +373,7 @@ export default function PortfolioPage() {
             </div>
 
             <div className="relative w-full rounded-2xl overflow-hidden mb-8 bg-slate-950 flex items-center justify-center border border-slate-200">
-              {selectedItem.mainImage && selectedItem.mainImage.startsWith("http") ? (
+              {selectedItem.mainImage && typeof selectedItem.mainImage === "string" && selectedItem.mainImage.startsWith("http") ? (
                 <img src={selectedItem.mainImage} alt={selectedItem.project || "Project Poster"} className="w-full h-auto object-contain max-h-none block" />
               ) : (
                 <div className="text-slate-500 flex flex-col items-center gap-2 py-20 bg-slate-950 w-full">
