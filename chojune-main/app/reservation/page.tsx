@@ -359,7 +359,7 @@ export default function ReservationPage() {
 
                           <h3 className="font-extrabold text-slate-900 text-xl md:text-2xl leading-snug tracking-tight">{prog.title}</h3>
 
-                          {/* 프로그램 상세 정보 영역 (날짜, 장소, 주관기관) */}
+                          {/* 프로그램 상세 정보 영역 */}
                           <div className="space-y-2 pt-1 border-t border-slate-100 md:border-none md:pt-0">
                             {prog.startDate && (
                               <div className="flex items-start text-xs md:text-sm text-slate-600 font-medium">
@@ -410,7 +410,7 @@ export default function ReservationPage() {
           )}
         </div>
 
-        {/* 프로그램이 선택된 경우에만 날짜 선택, 시간 선택, 정보 입력 섹션 노출 */}
+        {/* 2 & 3 & 4. 날짜, 회차, 정보 입력 */}
         {selectedProgram && (
           <>
             {/* 2. 날짜 선택 달력 */}
@@ -558,7 +558,7 @@ export default function ReservationPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                       성함 <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -567,12 +567,12 @@ export default function ReservationPage() {
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       placeholder="예: 홍길동"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                       연락처 <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -581,23 +581,23 @@ export default function ReservationPage() {
                       value={form.phone}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       placeholder="예: 010-1234-5678"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                       예약 인원 <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={form.count}
                       onChange={(e) => setForm({ ...form, count: Number(e.target.value) })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600 cursor-pointer"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
                     >
                       {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-                        <option key={num} value={num}>
+                        <option key={num} value={num} className="text-slate-900 font-medium">
                           {num}명
                         </option>
                       ))}
@@ -606,13 +606,13 @@ export default function ReservationPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">요청사항</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">요청사항</label>
                   <textarea
                     rows={3}
                     value={form.message}
                     onChange={(e) => setForm({ ...form, message: e.target.value })}
                     placeholder="추가 전달사항이나 요청사항이 있으시다면 입력해 주세요."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold focus:outline-none focus:border-blue-600"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                   />
                 </div>
 
