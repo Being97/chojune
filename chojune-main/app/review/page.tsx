@@ -212,7 +212,7 @@ function ReviewFormContent() {
 
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-widest">
-                Contact (Phone)
+                Phone (실제 참여자 확인용)
               </label>
               <input
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm placeholder:text-slate-300"
