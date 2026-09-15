@@ -589,7 +589,7 @@ export default function ReservationPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                      예약 인원 <span className="text-red-500">*</span>
+                      예약 인원（보호자 포함） <span className="text-red-500">*</span>
                     </label>
                     <select
                       value={form.count}
