@@ -24,6 +24,7 @@ interface Timeslot {
   name: string;
   time?: string;
   maxCapacity: number;
+  teamCapacity?: number;
   projectIds: string[];
   isTeamCapacity?: boolean;
 }
@@ -203,6 +204,16 @@ export default function ReservationPage() {
     return selectedDateTimeslots.find((s) => s.id === selectedTimeslot.id) || null;
   }, [selectedTimeslot, selectedDateTimeslots, selectedDate]);
 
+  const maxAllowedCount = useMemo(() => {
+    if (!activeSelectedSlot) return 10;
+    if (activeSelectedSlot.isTeamCapacity) {
+      return activeSelectedSlot.teamCapacity && activeSelectedSlot.teamCapacity > 0
+        ? activeSelectedSlot.teamCapacity
+        : 10;
+    }
+    return Math.max(1, Math.min(activeSelectedSlot.remainingCapacity, 10));
+  }, [activeSelectedSlot]);
+
   const calendarGrid = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -246,6 +257,10 @@ export default function ReservationPage() {
         alert("선택하신 회차는 이미 팀 예약이 마감되었습니다.");
         return;
       }
+      if (activeSelectedSlot.teamCapacity && activeSelectedSlot.teamCapacity > 0 && countNum > activeSelectedSlot.teamCapacity) {
+        alert(`선택하신 회차의 한 팀당 최대 예약 가능 인원(${activeSelectedSlot.teamCapacity}명)을 초과했습니다.`);
+        return;
+      }
     } else if (countNum > activeSelectedSlot.remainingCapacity) {
       alert(`신청 인원(${countNum}명)이 남은 잔여 수량(${activeSelectedSlot.remainingCapacity}석)을 초과했습니다.`);
       return;
@@ -263,7 +278,7 @@ export default function ReservationPage() {
           phone: form.phone,
           timeslotId: activeSelectedSlot.id,
           timeslotName: activeSelectedSlot.name,
-          count: `${countNum}명`,
+          count: countNum,
           message: form.message,
           selectedDate,
         }),
@@ -525,9 +540,16 @@ export default function ReservationPage() {
                             )}
                           </div>
                           {slot.time ? (
-                            <p className={`text-[11px] md:text-xs ${isSelected ? "text-blue-100" : "text-slate-500"}`}>{slot.time}</p>
+                            <p className={`text-[11px] md:text-xs ${isSelected ? "text-blue-100" : "text-slate-500"}`}>
+                              {slot.time}
+                              {slot.isTeamCapacity && slot.teamCapacity ? ` (팀당 최대 ${slot.teamCapacity}명)` : ""}
+                            </p>
                           ) : (
-                            slot.isTeamCapacity && <span className={`text-[10px] ${isSelected ? "text-blue-100" : "text-slate-400"}`}>팀 단위 신청</span>
+                            slot.isTeamCapacity && (
+                              <span className={`text-[10px] ${isSelected ? "text-blue-100" : "text-slate-400"}`}>
+                                팀 단위 신청{slot.teamCapacity ? ` (팀당 최대 ${slot.teamCapacity}명)` : ""}
+                              </span>
+                            )
                           )}
                         </button>
                       );
@@ -551,7 +573,9 @@ export default function ReservationPage() {
                   <p>
                     <span className="font-bold text-slate-900">현재 잔여 수량:</span>{" "}
                     <span className="text-blue-600 font-bold">
-                      {activeSelectedSlot.isTeamCapacity ? `${activeSelectedSlot.remainingCapacity}팀` : `${activeSelectedSlot.remainingCapacity}석`}
+                      {activeSelectedSlot.isTeamCapacity
+                        ? `${activeSelectedSlot.remainingCapacity}팀${activeSelectedSlot.teamCapacity ? ` (팀당 최대 ${activeSelectedSlot.teamCapacity}명)` : ""}`
+                        : `${activeSelectedSlot.remainingCapacity}석`}
                     </span>
                   </p>
                 </div>
@@ -592,11 +616,11 @@ export default function ReservationPage() {
                       예약 인원（보호자 포함） <span className="text-red-500">*</span>
                     </label>
                     <select
-                      value={form.count}
+                      value={Math.min(form.count, maxAllowedCount)}
                       onChange={(e) => setForm({ ...form, count: Number(e.target.value) })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
                     >
-                      {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
+                      {Array.from({ length: maxAllowedCount }, (_, i) => i + 1).map((num) => (
                         <option key={num} value={num} className="text-slate-900 font-medium">
                           {num}명
                         </option>

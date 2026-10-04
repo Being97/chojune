@@ -158,6 +158,8 @@ export async function GET() {
       const rawCapacity = getPropValue(props["정원"]);
       const maxCapacity = Number(rawCapacity) || 10;
       const isTeamCapacity = Boolean(getPropValue(props["팀신청여부"]));
+      const rawTeamCapacity = getPropValue(props["팀정원"]);
+      const teamCapacity = rawTeamCapacity ? parseGuestCount(rawTeamCapacity) : 0;
 
       const projectIdsSet = new Set<string>();
 
@@ -183,6 +185,7 @@ export async function GET() {
         name: title,
         time,
         maxCapacity,
+        teamCapacity,
         projectIds: Array.from(projectIdsSet),
         isTeamCapacity,
       };
@@ -308,6 +311,7 @@ export async function POST(req: Request) {
     const resolvedProgramTitle = programTitle || "";
     let resolvedTimeslotName = timeslotName || "";
     let maxCapacity = 10;
+    let teamCapacity = 0;
     let isTeamCapacity = false;
 
     const [timeslotsRaw, allReservations] = await Promise.all([
@@ -326,6 +330,10 @@ export async function POST(req: Request) {
       const rawCapacity = getPropValue(timeslotProps["정원"]);
       maxCapacity = Number(rawCapacity) || 10;
       isTeamCapacity = Boolean(getPropValue(timeslotProps["팀신청여부"]));
+      const rawTeamCapacity = getPropValue(timeslotProps["팀정원"]);
+      if (rawTeamCapacity) {
+        teamCapacity = parseGuestCount(rawTeamCapacity);
+      }
 
       const strProjId = getPropValue(timeslotProps["project_id"]) || getPropValue(timeslotProps["프로젝트ID"]);
       if (strProjId) {
@@ -371,6 +379,12 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+      if (teamCapacity > 0 && requestCountNum > teamCapacity) {
+        return NextResponse.json(
+          { error: `선택하신 회차의 한 팀당 최대 예약 가능 인원(${teamCapacity}명)을 초과했습니다.` },
+          { status: 400 }
+        );
+      }
     } else {
       if (requestCountNum > remainingCapacity) {
         return NextResponse.json(
@@ -389,7 +403,7 @@ export async function POST(req: Request) {
       created_at: { date: { start: nowIsoString } },
       예약자: { rich_text: [{ text: { content: name } }] },
       연락처: { rich_text: [{ text: { content: phone } }] },
-      인원: { rich_text: [{ text: { content: requestCountText } }] },
+      인원: { number: requestCountNum },
       예약상태: { select: { name: "예약신청" } },
     };
 
