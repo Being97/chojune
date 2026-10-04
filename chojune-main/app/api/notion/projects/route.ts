@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Client } from "@notionhq/client";
 import { NextResponse } from "next/server";
-import { getText, getFiles } from "@/lib/notion-utils";
+import { getText, getFiles, getMainDisplayOrder } from "@/lib/notion-utils";
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
@@ -61,11 +61,11 @@ async function fetchAllDataSources(dataSourceId: string) {
 // GET: Projects 전체 데이터 조회
 export async function GET() {
   try {
-    const projectsDbId = process.env.NOTION_RESERVATION_PROJECTS_DATASOURCE_ID;
+    const projectsDbId = process.env.NOTION_PROJECTS_DATASOURCE_ID;
 
     if (!projectsDbId) {
       return NextResponse.json(
-        { error: "Missing NOTION_RESERVATION_PROJECTS_DATASOURCE_ID environment variable" },
+        { error: "Missing Projects data source ID environment variable" },
         { status: 500 }
       );
     }
@@ -97,12 +97,15 @@ export async function GET() {
         endDate = dateObj;
       }
 
+      const mainDisplayOrder = getMainDisplayOrder(props["메인노출순서"]);
+
       return {
         id: page.id,
         projectId: getPropValue(props["project_id"]) || getPropValue(props["프로젝트ID"]) || page.id,
         title: getPropValue(props["프로젝트명"]) || getPropValue(props["프로젝트"]) || "제목 없음",
         reservationOpen: Boolean(getPropValue(props["예약Open"]) ?? getPropValue(props["예약 Open"])),
-        isOngoing: Boolean(getPropValue(props["Ongoing"])),
+        mainDisplayOrder,
+        isOngoing: mainDisplayOrder !== null,
         startDate,
         endDate,
         reservationDescription: getPropValue(props["예약설명"]) || "",

@@ -8,7 +8,7 @@
 ## 1. Notion Data Sources / Databases
 
 ### 1.1 통합 프로젝트 DB (`Projects DB` / 포트폴리오 & 예약 통합)
-- **환경 변수**: `NOTION_RESERVATION_PROJECTS_DATASOURCE_ID` (또는 `NOTION_PORTFOLIO_DATASOURCE_ID`)
+- **환경 변수**: `NOTION_PROJECTS_DATASOURCE_ID`
 - **관련 API**:
   - 포트폴리오/메인: [`chojune-main/app/api/notion/portfolio/route.ts`](chojune-main/app/api/notion/portfolio/route.ts:12)
   - 예약: [`chojune-main/app/api/notion/reservation/route.ts`](chojune-main/app/api/notion/reservation/route.ts:79)
@@ -17,7 +17,7 @@
 | :--- | :--- | :--- | :--- |
 | `프로젝트명` | `title` | 필수 | 프로젝트/프로그램 제목 |
 | `project_id` | `rich_text` | 선택 | 커스텀 식별자 ID (프로젝트 번호/코드) |
-| `Ongoing` | `checkbox` | 필수 | 현재 진행 중인 프로젝트 여부 (`true`: 진행 중, `false`: 완료) |
+| `메인노출순서` | `number` | 선택 | 숫자가 있으면 진행 중이며 메인에 숫자 오름차순으로 노출. 비어 있으면 완료이며 메인 미노출. 0도 입력된 값으로 취급하며 음수/소수도 숫자순으로 정렬. 순서가 같으면 프로젝트명 오름차순. 운영 시 1, 2, 3 등의 양의 정수 사용 권장 |
 | `날짜` | `date` | 선택 | 프로젝트 진행 기간 (`start`, `end` 또는 단일 날짜) |
 | `장소` | `rich_text` | 선택 | 진행 장소 |
 | `주관기관` | `rich_text` | 선택 | 주관 기관명 |
@@ -29,6 +29,10 @@
 | `활동사진` | `files` | 선택 | 활동 갤러리 이미지 목록 |
 | `참여인원` | `rich_text` | 선택 | 참여 인원 수 |
 | `만족도` | `rich_text` | 선택 | 만족도 점수 |
+
+진행 상태와 메인 노출은 `메인노출순서`로 통합 관리합니다. 기존 `Ongoing` 컬럼은 사용하지 않습니다.
+API 응답의 `isOngoing`은 이 숫자의 존재 여부에서 계산하며, 포트폴리오의 `active`는 진행 중/완료 표시용 값입니다.
+예약 페이지의 프로젝트 노출 여부는 진행 상태와 별개로 `예약Open` 체크박스를 사용합니다.
 
 ---
 

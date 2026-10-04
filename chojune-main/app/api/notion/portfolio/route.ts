@@ -2,15 +2,14 @@
 
 import { Client } from "@notionhq/client";
 import { NextResponse } from "next/server";
-import { getText, getFiles } from "@/lib/notion-utils";
+import { getText, getFiles, getMainDisplayOrder } from "@/lib/notion-utils";
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
 export async function GET() {
   try {
-    const dataSourceId =
-      process.env.NOTION_PORTFOLIO_DATASOURCE_ID ||
-      process.env.NOTION_RESERVATION_PROJECTS_DATASOURCE_ID;
+    // 메인/포트폴리오는 예약 프로젝트와 동일한 통합 Projects data source를 사용한다.
+    const dataSourceId = process.env.NOTION_PROJECTS_DATASOURCE_ID;
 
     if (!dataSourceId) {
       return NextResponse.json({ error: "Missing Notion Data Source ID" }, { status: 500 });
@@ -40,12 +39,9 @@ export async function GET() {
         parsedDate = getText(dateProp) || "날짜 미정";
       }
 
-      // 🔄 Ongoing 체크박위 파싱 ("진행 중" / "완료")
-      const ongoingProp = props["Ongoing"];
-      let isOngoing = false;
-      if (ongoingProp && ongoingProp.type === "checkbox") {
-        isOngoing = Boolean(ongoingProp.checkbox);
-      }
+      // 메인노출순서가 입력되어 있으면 진행 중, 비어 있으면 완료.
+      const mainDisplayOrder = getMainDisplayOrder(props["메인노출순서"]);
+      const isOngoing = mainDisplayOrder !== null;
       const currentStatus = isOngoing ? "진행 중" : "완료";
 
       // 🎟️ 예약Open 체크박스 파싱
@@ -68,6 +64,7 @@ export async function GET() {
         project: getText(props["프로젝트명"]) || getText(props["프로젝트"]),
         active: currentStatus,
         isOngoing: isOngoing,
+        mainDisplayOrder,
         reservationOpen: reservationOpen,
         date: parsedDate,
         location: getText(props["장소"]),

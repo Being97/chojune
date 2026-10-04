@@ -26,3 +26,12 @@ export const getFiles = (prop: any): string | string[] | null => {
   // 하나면 문자열, 여러 개면 배열 반환
   return urls.length === 1 ? urls[0] : urls;
 };
+
+/** 메인노출순서: 비어 있는 값과 0을 구분하여 유효한 숫자만 반환한다. */
+export const getMainDisplayOrder = (prop: any): number | null => {
+  return prop?.type === "number" &&
+    typeof prop.number === "number" &&
+    Number.isFinite(prop.number)
+    ? prop.number
+    : null;
+};

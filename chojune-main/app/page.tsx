@@ -9,6 +9,7 @@ interface PortfolioItem {
   project: string;
   active?: string | boolean;
   isOngoing?: boolean;
+  mainDisplayOrder?: number | null;
   date?: string;
   location?: string;
   organizer?: string;
@@ -38,16 +39,17 @@ export default function HomePage() {
         const data = await res.json();
 
         if (Array.isArray(data)) {
-          const ongoingList = data.filter((item: PortfolioItem) => {
-            if (typeof item.isOngoing === "boolean" && item.isOngoing) return true;
-            if (typeof item.active === "boolean") return item.active;
-            const activeState = String(item.active || "").trim().toLowerCase();
-            return (
-              activeState === "진행 중" ||
-              activeState === "진행중" ||
-              activeState === "true"
+          const ongoingList = data
+            .filter(
+              (item: PortfolioItem) =>
+                typeof item.mainDisplayOrder === "number" &&
+                Number.isFinite(item.mainDisplayOrder),
+            )
+            .sort(
+              (a: PortfolioItem, b: PortfolioItem) =>
+                a.mainDisplayOrder! - b.mainDisplayOrder! ||
+                a.project.localeCompare(b.project),
             );
-          });
 
           setLiveProjects(ongoingList);
         }
@@ -206,7 +208,7 @@ export default function HomePage() {
                       {currentProject.project}
                     </h2>
 
-                    <p className="text-slate-500 font-medium text-sm md:text-base mb-6 leading-relaxed break-keep line-clamp-3">
+                    <p className="text-slate-500 font-medium text-sm md:text-base mb-6 leading-relaxed break-keep whitespace-pre-line">
                       {currentProject.description ||
                         "많은 탐험가들에게 전율을 선사하고 있는 조준의 멋진 에피소드가 지금 오프라인 현장에서 진행 중입니다. 지금 조준과 함께 탐험을 시작해 보세요!"}
                     </p>

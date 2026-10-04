@@ -155,17 +155,9 @@ export default function ReservationPage() {
 
     return programTimeslots
       .map((slot) => {
-        const keyById = `${selectedDate}_${slot.id}`;
-        const keyByName = `${selectedDate}_${slot.name}`;
-        const keyWithProgId = selectedProgram.projectId ? `${selectedDate}_${selectedProgram.projectId}_${slot.id}` : "";
-        const keyWithProgTitle = selectedProgram.title ? `${selectedDate}_${selectedProgram.title}_${slot.id}` : "";
-
-        const reservedCount =
-          (keyWithProgId ? reservedCountsMap[keyWithProgId] : undefined) ??
-          (keyWithProgTitle ? reservedCountsMap[keyWithProgTitle] : undefined) ??
-          reservedCountsMap[keyById] ??
-          reservedCountsMap[keyByName] ??
-          0;
+        const projectKey = selectedProgram.projectId || selectedProgram.id;
+        const reservationKey = `${selectedDate}_${projectKey}_${slot.id}`;
+        const reservedCount = reservedCountsMap[reservationKey] ?? 0;
 
         const remainingCapacity = Math.max(0, slot.maxCapacity - reservedCount);
 
@@ -198,6 +190,23 @@ export default function ReservationPage() {
       })
       .sort((a, b) => (a.time || a.name || "").localeCompare(b.time || b.name || "", undefined, { numeric: true, sensitivity: "base" }));
   }, [selectedDate, selectedProgram, programTimeslots, reservedCountsMap, todayStr]);
+
+  useEffect(() => {
+    if (!selectedDate || !selectedProgram) return;
+
+    console.groupCollapsed(
+      `[예약 디버그] ${selectedProgram.title} (${selectedProgram.projectId ?? selectedProgram.id}) / ${selectedDate}`,
+    );
+    console.log("선택 프로그램", selectedProgram);
+    console.log("해당 날짜의 회차 및 집계 예약 정보", selectedDateTimeslots);
+    console.log(
+      "해당 날짜의 예약 집계 키",
+      Object.fromEntries(
+        Object.entries(reservedCountsMap).filter(([key]) => key.startsWith(`${selectedDate}_`)),
+      ),
+    );
+    console.groupEnd();
+  }, [selectedDate, selectedProgram, selectedDateTimeslots, reservedCountsMap]);
 
   const activeSelectedSlot = useMemo(() => {
     if (!selectedTimeslot || !selectedDate) return null;

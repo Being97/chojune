@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Client } from "@notionhq/client";
 import { NextResponse } from "next/server";
-import { getText, getFiles } from "@/lib/notion-utils";
+import { getText, getFiles, getMainDisplayOrder } from "@/lib/notion-utils";
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
@@ -76,7 +76,7 @@ async function fetchAllDataSources(dataSourceId: string) {
 // ==========================================
 export async function GET() {
   try {
-    const programsDbId = process.env.NOTION_RESERVATION_PROJECTS_DATASOURCE_ID;
+    const programsDbId = process.env.NOTION_PROJECTS_DATASOURCE_ID;
     const timeslotsDbId = process.env.NOTION_RESERVATION_TIMESLOTS_DATASOURCE_ID;
     const reservationsDbId = process.env.NOTION_RESERVATION_RESERVATIONS_DATASOURCE_ID;
 
@@ -103,7 +103,8 @@ export async function GET() {
         const resOpenVal = getPropValue(props["예약Open"]) ?? getPropValue(props["예약 Open"]);
         const reservationOpen = Boolean(resOpenVal);
 
-        const isOngoing = Boolean(getPropValue(props["Ongoing"]));
+        const mainDisplayOrder = getMainDisplayOrder(props["메인노출순서"]);
+        const isOngoing = mainDisplayOrder !== null;
         const reservationDescription = getPropValue(props["예약설명"]) || "";
         const description = getPropValue(props["안내문구"]) || getPropValue(props["설명"]) || "";
         const notice = getPropValue(props["예약주의사항"]) || getPropValue(props["주의사항"]) || "";
@@ -137,6 +138,7 @@ export async function GET() {
           title,
           reservationOpen,
           isOngoing,
+          mainDisplayOrder,
           startDate,
           endDate,
           reservationDescription,
@@ -191,7 +193,7 @@ export async function GET() {
       };
     });
 
-    // --- Reservations 파싱 및 [날짜_식별자] 기준 집계 ---
+    // --- 예약을 날짜 + 프로젝트 + 타임슬롯 ID 기준으로 한 번만 집계 ---
     const statsMap: Record<string, { reservationCount: number; totalGuests: number }> = {};
 
     reservationsRaw.forEach((page: any) => {
@@ -206,69 +208,45 @@ export async function GET() {
       if (!timeslotProp) return;
 
       const guestCount = parseGuestCount(getPropValue(props["인원"]));
-      const resProjectId = getPropValue(props["project_id"]) || getPropValue(props["프로젝트명"]) || "";
+      const resProjectId = String(
+        getPropValue(props["project_id"]) || getPropValue(props["프로젝트ID"]) || "",
+      ).trim();
+      const matchedSlots = timeslots.filter(
+        (slot) => slot.id === timeslotProp || slot.name === timeslotProp,
+      );
+      const matchedSlot = matchedSlots.find((slot) =>
+        resProjectId
+          ? slot.projectIds.includes(resProjectId)
+          : matchedSlots.length === 1,
+      );
 
-      const matchedSlot = timeslots.find((t) => t.id === timeslotProp || t.name === timeslotProp);
+      // 새 예약은 슬롯의 Notion page ID를 기록한다. 회차명만 있는 기존 예약은 프로젝트까지
+      // 연결되어 있고 후보 슬롯이 하나일 때에만 매칭하여 타 프로젝트의 동일 회차와 분리한다.
+      const slot = matchedSlot || timeslots.find((item) => item.id === timeslotProp);
+      const projectKey = resProjectId || (slot?.projectIds.length === 1 ? slot.projectIds[0] : "");
+      if (!reservedDate || !slot || !projectKey) return;
 
-      const identifiers = new Set<string>();
-      identifiers.add(timeslotProp);
-      if (matchedSlot) {
-        identifiers.add(matchedSlot.id);
-        identifiers.add(matchedSlot.name);
-      }
-
-      identifiers.forEach((id) => {
-        const keys = [reservedDate ? `${reservedDate}_${id}` : id];
-        if (resProjectId) {
-          keys.push(reservedDate ? `${reservedDate}_${resProjectId}_${id}` : `${resProjectId}_${id}`);
-        }
-
-        keys.forEach((key) => {
-          if (!statsMap[key]) {
-            statsMap[key] = { reservationCount: 0, totalGuests: 0 };
-          }
-          statsMap[key].reservationCount += 1;
-          statsMap[key].totalGuests += guestCount;
-        });
-      });
+      const key = `${reservedDate}_${projectKey}_${slot.id}`;
+      if (!statsMap[key]) statsMap[key] = { reservationCount: 0, totalGuests: 0 };
+      statsMap[key].reservationCount += 1;
+      statsMap[key].totalGuests += guestCount;
     });
 
-    // --- reservedCountsMap 생성 ---
+    // --- 클라이언트 조회 키도 프로젝트 ID와 슬롯 ID로만 생성 ---
     const reservedCountsMap: Record<string, number> = {};
-
-    Object.keys(statsMap).forEach((key) => {
-      const lastUnderscoreIdx = key.lastIndexOf("_");
-      const identifier = lastUnderscoreIdx !== -1 ? key.substring(lastUnderscoreIdx + 1) : key;
-      const matchedSlot = timeslots.find((t) => t.id === identifier || t.name === identifier);
-
-      if (matchedSlot && matchedSlot.isTeamCapacity) {
-        reservedCountsMap[key] = statsMap[key].reservationCount;
-      } else {
-        reservedCountsMap[key] = statsMap[key].totalGuests;
-      }
+    Object.entries(statsMap).forEach(([key, stats]) => {
+      const slotId = key.slice(key.lastIndexOf("_") + 1);
+      const slot = timeslots.find((item) => item.id === slotId);
+      reservedCountsMap[key] = slot?.isTeamCapacity ? stats.reservationCount : stats.totalGuests;
     });
 
-    // --- 회차별 잔여 정원 계산 ---
+    // 슬롯 자체의 reservedCount는 전체 프로젝트 합산하지 않고 기본값으로 둔다.
     const processedTimeslots = timeslots.map((slot) => {
-      let reservationCount = 0;
-      let totalGuests = 0;
-
-      Object.keys(statsMap).forEach((key) => {
-        if (key.endsWith(`_${slot.id}`) || key.endsWith(`_${slot.name}`) || key === slot.id || key === slot.name) {
-          reservationCount += statsMap[key].reservationCount;
-          totalGuests += statsMap[key].totalGuests;
-        }
-      });
-
-      const reservedCount = slot.isTeamCapacity ? reservationCount : totalGuests;
-      const remainingCapacity = Math.max(0, slot.maxCapacity - reservedCount);
-      const isSoldOut = remainingCapacity <= 0;
-
       return {
         ...slot,
-        reservedCount,
-        remainingCapacity,
-        isSoldOut,
+        reservedCount: 0,
+        remainingCapacity: slot.maxCapacity,
+        isSoldOut: false,
       };
     });
 
