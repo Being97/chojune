@@ -215,19 +215,27 @@ export async function GET() {
       const resProjectId = String(
         getPropValue(props["project_id"]) || getPropValue(props["프로젝트ID"]) || "",
       ).trim();
+      const program = programs.find((item) =>
+        [item.id, item.projectId, item.title].includes(resProjectId),
+      );
+      const projectAliases = program
+        ? [program.id, program.projectId, program.title]
+        : [resProjectId];
       const matchedSlots = timeslots.filter(
         (slot) => slot.id === timeslotProp || slot.name === timeslotProp,
       );
-      const matchedSlot = matchedSlots.find((slot) =>
+      const projectMatchedSlots = matchedSlots.filter((slot) =>
         resProjectId
-          ? slot.projectIds.includes(resProjectId)
+          ? slot.projectIds.some((id) => projectAliases.includes(id))
           : matchedSlots.length === 1,
       );
 
-      // 새 예약은 슬롯의 Notion page ID를 기록한다. 회차명만 있는 기존 예약은 프로젝트까지
-      // 연결되어 있고 후보 슬롯이 하나일 때에만 매칭하여 타 프로젝트의 동일 회차와 분리한다.
-      const slot = matchedSlot || timeslots.find((item) => item.id === timeslotProp);
-      const projectKey = resProjectId || (slot?.projectIds.length === 1 ? slot.projectIds[0] : "");
+      // 회차명은 프로젝트로 좁혀 후보가 하나일 때 매칭한다. 기존 ID 예약도 계속 지원한다.
+      // 프로젝트 관계형 페이지 ID와 커스텀 ID를 같은 프로젝트로 해석해 누락을 방지한다.
+      const slot = timeslots.find((item) => item.id === timeslotProp) ||
+        (projectMatchedSlots.length === 1 ? projectMatchedSlots[0] : undefined);
+      const projectKey = program?.projectId || program?.id || resProjectId ||
+        (slot?.projectIds.length === 1 ? slot.projectIds[0] : "");
       if (!reservedDate || !slot || !projectKey) return;
 
       const key = `${reservedDate}_${projectKey}_${slot.id}`;
@@ -281,7 +289,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, phone, email, timeslotId, timeslotName, programId, count, message, selectedDate } = body;
+    const { name, phone, email, timeslotId, programId, count, message, selectedDate } = body;
 
     const requestCountText = count ? String(count).trim() : "1명";
     const requestCountNum = parseGuestCount(requestCountText);
@@ -306,7 +314,7 @@ export async function POST(req: Request) {
 
     const resolvedCustomProjectId = getPropValue(project.properties["project_id"]) || getPropValue(project.properties["프로젝트ID"]) || project.id;
     const resolvedProgramTitle = getPropValue(project.properties["프로젝트명"]) || getPropValue(project.properties["프로젝트"]) || "제목 없음";
-    let resolvedTimeslotName = timeslotName || "";
+    let resolvedTimeslotName = "";
     let maxCapacity = 10;
     let teamCapacity = 0;
     let isTeamCapacity = false;
@@ -340,7 +348,10 @@ export async function POST(req: Request) {
     if (matchedTimeslotPage) {
       const timeslotProps = matchedTimeslotPage.properties;
       resolvedTimeslotName =
-        getPropValue(timeslotProps["회차"]) || getPropValue(timeslotProps["프로젝트명"]) || resolvedTimeslotName;
+        getText(timeslotProps["회차"]).trim();
+      if (!resolvedTimeslotName) {
+        return NextResponse.json({ error: "회차 시간대 설정이 없습니다. 관리자에게 문의해 주세요." }, { status: 400 });
+      }
       const rawCapacity = getPropValue(timeslotProps["정원"]);
       maxCapacity = Number(rawCapacity) || 10;
       isTeamCapacity = Boolean(getPropValue(timeslotProps["팀신청여부"]));
@@ -409,7 +420,7 @@ export async function POST(req: Request) {
     const newPageProperties: Record<string, any> = {
       프로젝트명: { title: [{ text: { content: resolvedProgramTitle || "프로젝트명 없음" } }] },
       project_id: { rich_text: [{ text: { content: resolvedCustomProjectId || "" } }] },
-      회차: { rich_text: [{ text: { content: timeslotId } }] },
+      회차: { rich_text: [{ text: { content: resolvedTimeslotName } }] },
       created_at: { date: { start: nowIsoString } },
       예약자: { rich_text: [{ text: { content: name } }] },
       연락처: { rich_text: [{ text: { content: phone } }] },
