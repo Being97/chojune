@@ -2,6 +2,7 @@
 import { Client } from "@notionhq/client";
 import { NextResponse } from "next/server";
 import { getText, getFiles, getMainDisplayOrder } from "@/lib/notion-utils";
+import { buildReservationSchedule, isCalendarDate, isReservationTimePassed } from "@/lib/reservation-schedule";
 
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
@@ -74,6 +75,13 @@ async function fetchAllDataSources(dataSourceId: string) {
 // ==========================================
 // 1. GET: 프로그램, 타임슬롯, 잔여 수량 조회
 // ==========================================
+function getProjectSchedule(props: any) {
+  const date = getPropValue(props["날짜"]);
+  const start = typeof date?.start === "string" ? date.start.slice(0, 10) : "";
+  const end = typeof date?.end === "string" ? date.end.slice(0, 10) : start;
+  return buildReservationSchedule(start, end, getText(props["휴무일"]));
+}
+
 export async function GET() {
   try {
     const programsDbId = process.env.NOTION_PROJECTS_DATASOURCE_ID;
@@ -120,16 +128,9 @@ export async function GET() {
           thumbnail = filesVal;
         }
 
-        const dateObj = getPropValue(props["날짜"]);
-        let startDate = "";
-        let endDate = "";
-
-        if (dateObj && typeof dateObj === "object") {
-          startDate = dateObj.start || "";
-          endDate = dateObj.end || startDate;
-        } else if (typeof dateObj === "string") {
-          startDate = dateObj;
-          endDate = dateObj;
+        const schedule = getProjectSchedule(props);
+        if (reservationOpen && (schedule.errors.length || schedule.warnings.length)) {
+          console.warn("예약 일정 설정 확인:", page.id, schedule.errors, schedule.warnings);
         }
 
         return {
@@ -139,8 +140,11 @@ export async function GET() {
           reservationOpen,
           isOngoing,
           mainDisplayOrder,
-          startDate,
-          endDate,
+          startDate: schedule.startDate,
+          endDate: schedule.endDate,
+          availableDates: schedule.availableDates,
+          closedDateRanges: schedule.closedDateRanges,
+          scheduleError: schedule.errors.length > 0,
           reservationDescription,
           description,
           notice,
@@ -267,26 +271,41 @@ export async function GET() {
 // ==========================================
 export async function POST(req: Request) {
   try {
+    const projectsDbId = process.env.NOTION_PROJECTS_DATASOURCE_ID;
     const timeslotsDbId = process.env.NOTION_RESERVATION_TIMESLOTS_DATASOURCE_ID;
     const reservationsDbId = process.env.NOTION_RESERVATION_RESERVATIONS_DATASOURCE_ID;
     const adminUserId = process.env.NOTION_ADMIN_USER_ID;
 
-    if (!reservationsDbId) {
-      return NextResponse.json({ error: "Missing NOTION_RESERVATION_RESERVATIONS_DATASOURCE_ID" }, { status: 500 });
+    if (!projectsDbId || !timeslotsDbId || !reservationsDbId) {
+      return NextResponse.json({ error: "예약 데이터 설정이 누락되었습니다." }, { status: 500 });
     }
 
     const body = await req.json();
-    const { name, phone, email, timeslotId, timeslotName, programTitle, programId, count, message, selectedDate } = body;
+    const { name, phone, email, timeslotId, timeslotName, programId, count, message, selectedDate } = body;
 
     const requestCountText = count ? String(count).trim() : "1명";
     const requestCountNum = parseGuestCount(requestCountText);
 
-    if (!name || !phone || !timeslotId) {
-      return NextResponse.json({ error: "이름, 연락처, 회차 정보는 필수입니다." }, { status: 400 });
+    if (!name || !phone || !timeslotId || !programId || !isCalendarDate(selectedDate)) {
+      return NextResponse.json({ error: "이름, 연락처, 프로젝트, 회차와 올바른 예약 날짜는 필수입니다." }, { status: 400 });
     }
 
-    let resolvedCustomProjectId = programId || "";
-    const resolvedProgramTitle = programTitle || "";
+    const projectsRaw = await fetchAllDataSources(projectsDbId);
+    const project = projectsRaw.find((page: any) => page.id === programId);
+    if (!project || !Boolean(getPropValue(project.properties["예약Open"]) ?? getPropValue(project.properties["예약 Open"]))) {
+      return NextResponse.json({ error: "현재 예약을 받지 않는 프로젝트입니다." }, { status: 400 });
+    }
+    const schedule = getProjectSchedule(project.properties);
+    if (schedule.errors.length) {
+      console.warn("예약 일정 설정 오류:", project.id, schedule.errors);
+      return NextResponse.json({ error: "예약 일정 확인 중입니다. 관리자에게 문의해 주세요." }, { status: 400 });
+    }
+    if (!schedule.availableDates.includes(selectedDate)) {
+      return NextResponse.json({ error: "선택하신 날짜는 휴무일이거나 프로젝트 진행 기간 밖입니다." }, { status: 400 });
+    }
+
+    const resolvedCustomProjectId = getPropValue(project.properties["project_id"]) || getPropValue(project.properties["프로젝트ID"]) || project.id;
+    const resolvedProgramTitle = getPropValue(project.properties["프로젝트명"]) || getPropValue(project.properties["프로젝트"]) || "제목 없음";
     let resolvedTimeslotName = timeslotName || "";
     let maxCapacity = 10;
     let teamCapacity = 0;
@@ -298,8 +317,25 @@ export async function POST(req: Request) {
     ]);
 
     const matchedTimeslotPage = timeslotsRaw.find(
-      (page: any) => page.id === timeslotId || getPropValue(page.properties["회차"]) === timeslotName
+      (page: any) => page.id === timeslotId
     );
+
+    if (!matchedTimeslotPage) {
+      return NextResponse.json({ error: "유효하지 않은 회차입니다." }, { status: 400 });
+    }
+    const slotProps = matchedTimeslotPage.properties;
+    const linkedIds = [
+      ...(slotProps["project_id"]?.relation || []).map((r: any) => r.id),
+      ...(slotProps["프로젝트"]?.relation || []).map((r: any) => r.id),
+      getText(slotProps["project_id"]), getText(slotProps["프로젝트ID"]),
+      getText(slotProps["프로젝트명"]), getText(slotProps["프로젝트"]),
+    ].filter(Boolean);
+    if (!linkedIds.some((id) => [project.id, resolvedCustomProjectId, resolvedProgramTitle].includes(id))) {
+      return NextResponse.json({ error: "선택한 프로젝트에 속하지 않는 회차입니다." }, { status: 400 });
+    }
+    if (isReservationTimePassed(selectedDate, getText(slotProps["시간"]) || getText(slotProps["회차"]))) {
+      return NextResponse.json({ error: "예약은 프로그램 시작 4시간 전까지만 가능합니다." }, { status: 400 });
+    }
 
     if (matchedTimeslotPage) {
       const timeslotProps = matchedTimeslotPage.properties;
@@ -313,10 +349,6 @@ export async function POST(req: Request) {
         teamCapacity = parseGuestCount(rawTeamCapacity);
       }
 
-      const strProjId = getPropValue(timeslotProps["project_id"]) || getPropValue(timeslotProps["프로젝트ID"]);
-      if (strProjId) {
-        resolvedCustomProjectId = strProjId;
-      }
     }
 
     let currentReservedCount = 0;
@@ -377,7 +409,7 @@ export async function POST(req: Request) {
     const newPageProperties: Record<string, any> = {
       프로젝트명: { title: [{ text: { content: resolvedProgramTitle || "프로젝트명 없음" } }] },
       project_id: { rich_text: [{ text: { content: resolvedCustomProjectId || "" } }] },
-      회차: { rich_text: [{ text: { content: resolvedTimeslotName || String(timeslotId) } }] },
+      회차: { rich_text: [{ text: { content: timeslotId } }] },
       created_at: { date: { start: nowIsoString } },
       예약자: { rich_text: [{ text: { content: name } }] },
       연락처: { rich_text: [{ text: { content: phone } }] },

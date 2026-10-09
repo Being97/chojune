@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
+import { getKoreaToday, isClosedDate, isReservationTimePassed, type ClosedDateRange } from "@/lib/reservation-schedule";
 
 interface Program {
   id: string;
@@ -11,6 +12,9 @@ interface Program {
   isOngoing?: boolean;
   startDate: string;
   endDate: string;
+  availableDates: string[];
+  closedDateRanges: ClosedDateRange[];
+  scheduleError: boolean;
   reservationDescription: string;
   description?: string;
   notice?: string;
@@ -49,26 +53,13 @@ export default function ReservationPage() {
   const [noticeAgreed, setNoticeAgreed] = useState(false);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
-  const todayStr = useMemo(() => {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    return `${yyyy}-${mm}-${dd}`;
-  }, []);
+  const todayStr = getKoreaToday();
 
   const initMonthForProgram = useCallback((prog: Program) => {
-    const today = new Date();
-    if (prog.startDate) {
-      const start = new Date(prog.startDate);
-      if (!isNaN(start.getTime())) {
-        if (start > today) {
-          setCurrentMonth(start);
-          return;
-        }
-      }
-    }
-    setCurrentMonth(today);
+    const today = getKoreaToday();
+    const firstDate = prog.availableDates.find((date) => date >= today) || today;
+    const [year, month, day] = firstDate.split("-").map(Number);
+    setCurrentMonth(new Date(year, month - 1, day));
   }, []);
 
   const fetchData = useCallback(async (isRefetch = false) => {
@@ -76,12 +67,13 @@ export default function ReservationPage() {
       if (isRefetch) {
         setLoading(true);
       }
-      const res = await fetch("/api/notion/reservation");
+      const res = await fetch("/api/notion/reservation", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch data");
       const data = await res.json();
 
       const fetchedPrograms: Program[] = data.programs || [];
       setPrograms(fetchedPrograms);
+      setSelectedProgram((current) => current ? fetchedPrograms.find((program) => program.id === current.id) || null : null);
       setTimeslots(data.timeslots || []);
       setReservedCountsMap(data.reservedCountsMap || {});
     } catch (err) {
@@ -118,7 +110,7 @@ export default function ReservationPage() {
   const programTimeslots = useMemo(() => {
     if (!selectedProgram) return [];
     return timeslots.filter((slot) => {
-      if (!slot.projectIds || slot.projectIds.length === 0) return true;
+      if (!slot.projectIds || slot.projectIds.length === 0) return false;
       return slot.projectIds.some(
         (id) =>
           id === selectedProgram.id ||
@@ -129,29 +121,11 @@ export default function ReservationPage() {
   }, [selectedProgram, timeslots]);
 
   const availableDatesSet = useMemo(() => {
-    const dates = new Set<string>();
-    if (selectedProgram && selectedProgram.startDate) {
-      const start = new Date(selectedProgram.startDate);
-      const end = selectedProgram.endDate ? new Date(selectedProgram.endDate) : start;
-
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-        const curr = new Date(start);
-        while (curr <= end) {
-          const yyyy = curr.getFullYear();
-          const mm = String(curr.getMonth() + 1).padStart(2, "0");
-          const dd = String(curr.getDate()).padStart(2, "0");
-          dates.add(`${yyyy}-${mm}-${dd}`);
-          curr.setDate(curr.getDate() + 1);
-        }
-      }
-    }
-    return dates;
+    return new Set(selectedProgram?.scheduleError ? [] : selectedProgram?.availableDates || []);
   }, [selectedProgram]);
 
   const selectedDateTimeslots = useMemo(() => {
-    if (!selectedDate || !selectedProgram) return [];
-
-    const now = new Date();
+    if (!selectedDate || !selectedProgram || !availableDatesSet.has(selectedDate)) return [];
 
     return programTimeslots
       .map((slot) => {
@@ -161,22 +135,7 @@ export default function ReservationPage() {
 
         const remainingCapacity = Math.max(0, slot.maxCapacity - reservedCount);
 
-        let isTimePassed = false;
-        if (selectedDate < todayStr) {
-          isTimePassed = true;
-        } else if (selectedDate === todayStr) {
-          const timeMatch = (slot.time || slot.name || "").match(/(\d{1,2}):(\d{2})/);
-          if (timeMatch) {
-            const hour = parseInt(timeMatch[1], 10);
-            const minute = parseInt(timeMatch[2], 10);
-            const slotDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
-            const cutoffTime = new Date(slotDateTime.getTime() - 4 * 60 * 60 * 1000);
-
-            if (now >= cutoffTime) {
-              isTimePassed = true;
-            }
-          }
-        }
+        const isTimePassed = isReservationTimePassed(selectedDate, slot.time || slot.name || "");
 
         const isSoldOut = remainingCapacity <= 0 || isTimePassed;
 
@@ -189,7 +148,7 @@ export default function ReservationPage() {
         };
       })
       .sort((a, b) => (a.time || a.name || "").localeCompare(b.time || b.name || "", undefined, { numeric: true, sensitivity: "base" }));
-  }, [selectedDate, selectedProgram, programTimeslots, reservedCountsMap, todayStr]);
+  }, [selectedDate, selectedProgram, programTimeslots, reservedCountsMap, availableDatesSet]);
 
   useEffect(() => {
     if (!selectedDate || !selectedProgram) return;
@@ -254,6 +213,11 @@ export default function ReservationPage() {
       return;
     }
 
+    if (!availableDatesSet.has(selectedDate) || isReservationTimePassed(selectedDate, activeSelectedSlot.time || activeSelectedSlot.name)) {
+      alert("선택하신 날짜 또는 회차는 현재 예약할 수 없습니다.");
+      return;
+    }
+
     if (selectedProgram.notice && !noticeAgreed) {
       alert("주의사항을 확인하시고 동의 체크박스에 체크해 주세요.");
       return;
@@ -304,6 +268,7 @@ export default function ReservationPage() {
       await fetchData(true);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : "예약 제출에 실패했습니다.");
+      await fetchData(true);
     } finally {
       setSubmitting(false);
     }
@@ -458,6 +423,14 @@ export default function ReservationPage() {
                 </div>
               </div>
 
+              {selectedProgram.scheduleError ? (
+                <p role="alert" className="text-sm font-semibold text-amber-700">예약 일정 확인 중입니다. 관리자에게 문의해 주세요.</p>
+              ) : !selectedProgram.availableDates.some((date) => date >= todayStr) ? (
+                <p className="text-sm text-slate-500">현재 예약 가능한 날짜가 없습니다.</p>
+              ) : (
+                <p className="text-xs text-slate-500">휴무일은 선택할 수 없습니다. 예약은 프로그램 시작 4시간 전까지 가능합니다.</p>
+              )}
+
               {/* 요일 라벨 */}
               <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-400">
                 <span className="text-red-500">일</span>
@@ -474,6 +447,7 @@ export default function ReservationPage() {
                 {calendarGrid.map((cell, idx) => {
                   if (!cell) return <div key={`empty-${idx}`} className="h-10 sm:h-12 md:h-14" />;
                   const isPastDate = cell.dateStr < todayStr;
+                  const isHoliday = !selectedProgram.scheduleError && isClosedDate(cell.dateStr, selectedProgram.closedDateRanges);
                   const hasSlot = availableDatesSet.has(cell.dateStr) && !isPastDate;
                   const isSelected = selectedDate === cell.dateStr;
 
@@ -482,6 +456,7 @@ export default function ReservationPage() {
                       key={cell.dateStr}
                       type="button"
                       disabled={!hasSlot}
+                      aria-label={`${cell.dateStr}${isHoliday ? " 휴무일" : hasSlot ? " 예약 가능" : " 예약 불가"}`}
                       onClick={() => {
                         setSelectedDate(cell.dateStr);
                         setSelectedTimeslot(null);
@@ -495,6 +470,7 @@ export default function ReservationPage() {
                       }`}
                     >
                       <span className="text-xs sm:text-sm">{cell.dayNum}</span>
+                      {isHoliday && <span className="text-[9px] sm:text-[10px]">휴무</span>}
                       {hasSlot && !isSelected && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 absolute bottom-1 sm:bottom-1.5" />}
                     </button>
                   );
